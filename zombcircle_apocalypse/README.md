@@ -1,5 +1,5 @@
 # Lab-ED1
-Grupo #2. Juego Arena Shooter y telemetría para Estructura de Datos I.
+Grupo #2. Juego Zombcircle Apocalypse y telemetría para Estructura de Datos I.
 
 ## Ejecución
 
@@ -10,17 +10,48 @@ Para jugar localmente, instala `pygame-ce` (se importa como `pygame`):
 python -m game.main
 ```
 
-Para ejecutar en navegador, instala Pygbag por separado:
-`python -m pip install pygbag`. Desde la raíz del repositorio, genera el bundle
-y sírvelo de forma estática:
+## Ejecutar en el navegador (pygbag)
+
+Requisitos: Python 3.10-3.12 recomendado, conexión a internet (pygbag descarga
+el runtime de pygame desde internet la primera vez) y un navegador moderno.
 
 ```bash
-pygbag --build .
-python -m http.server 8000 --bind 0.0.0.0 --directory build/web
+python -m pip install --upgrade pygbag
+   cd /workspaces/Lab-ED1/zombcircle_apocalypse
+   pkill -f pygbag; pkill -f http.server
+   rm -f game/audio-pygbag.py
+   rm -rf build
+   python -m pygbag --build .
+      python -m http.server 8080 --directory "$(pwd)/build/web"
 ```
 
-En Codespaces, abre el puerto 8000 desde la pestaña **Ports**. Este método
-conserva las URLs HTTPS del runtime CDN de Pygbag.
+1. Espera a que la terminal muestre que sirve en `http://localhost:8000`
+   (en Codespaces, abre el puerto 8000 en la pestaña **Ports**).
+2. Abre **http://localhost:8000** en el navegador. NO abras `index.html` con
+   doble clic (`file://`): no funciona.
+3. La primera carga tarda (descarga el runtime). Cuando aparezca el mensaje
+   "Ready to start! Please click/touch page", haz clic en la página.
+4. Si se queda cargando: pulsa F12, abre la pestaña **Console** y revisa el
+   error; prueba Ctrl+Shift+R (recarga sin caché) o una ventana de incógnito.
+
+Si `pygbag` no responde o falla al arrancar:
+
+- Borra la carpeta `build/` y vuelve a ejecutar.
+- Cierra cualquier proceso usando el puerto 8000 o usa
+  `python -m pygbag --port 8001 .`.
+- Usa un entorno virtual con Python 3.11 o 3.12 (las versiones muy nuevas
+  de Python pueden no ser compatibles con pygbag).
+- Verifica que `main.py` esté en la carpeta donde ejecutas el comando.
+
+En el navegador el sistema de archivos es virtual: `logs/` y `config.json`
+no persisten entre recargas.
+
+## Icono y música
+
+- Icono: `assets/icon.png` (ventana local) y `favicon.png` (pestaña del
+  navegador con pygbag). El logo original está en `assets/logo.jpeg`.
+- Música: guarda el archivo como `assets/music/theme.ogg`; ver
+  `assets/music/LEEME.md`. Sin archivo, el juego funciona en silencio.
 
 ## Pruebas
 
