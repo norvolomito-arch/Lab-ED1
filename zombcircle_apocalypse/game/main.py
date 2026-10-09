@@ -8,6 +8,7 @@ Ejecutar desde la raiz del repo:   python -m game.main
 import asyncio
 import os
 import sys
+from turtle import Screen
 
 import pygame
 
@@ -41,12 +42,8 @@ ENEMY_COLORS = {"slime": (80, 200, 90), "bat": (170, 110, 220),
 
 
 def open_statistics():
-    """STUB de Statistics. La Persona 3 reemplaza esta funcion.
-
-    Por ahora no hace nada: el menu solo la invoca.
-    """
-    pass
-
+     from statistics_screen import run_statistics
+     return run_statistics(Screen, LOG_DIR)
 
 class App:
     """Maquina de estados: menu -> playing -> gameover, y settings."""
