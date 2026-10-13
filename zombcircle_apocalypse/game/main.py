@@ -8,7 +8,6 @@ Ejecutar desde la raiz del repo:   python -m game.main
 import asyncio
 import os
 import sys
-from turtle import Screen
 
 import pygame
 
@@ -23,6 +22,7 @@ from game.game_logic import (ArenaGame, SessionIdGenerator,  # noqa: E402
                              ARENA_W, ARENA_H)
 from game.settings_screen import (SettingsScreen, load_config,  # noqa: E402
                                   sanitize_config, save_config)
+from game.statistics_screen import run_statistics            # noqa: E402
 
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
@@ -40,10 +40,6 @@ MENU_ITEMS = ("Start Game", "Statistics", "Settings", "Quit")
 ENEMY_COLORS = {"slime": (80, 200, 90), "bat": (170, 110, 220),
                 "brute": (230, 140, 50), "boss": (220, 50, 50)}
 
-
-def open_statistics():
-     from statistics_screen import run_statistics
-     return run_statistics(Screen, LOG_DIR)
 
 class App:
     """Maquina de estados: menu -> playing -> gameover, y settings."""
@@ -76,7 +72,7 @@ class App:
         if item == "Start Game":
             self.start_game()
         elif item == "Statistics":
-            open_statistics()
+            self.state = "stats"  # el bucle principal abre la pantalla (async)
         elif item == "Settings":
             self.settings = SettingsScreen(self.config)
             self.state = "settings"
@@ -251,6 +247,14 @@ async def main():
             dt = min(clock.tick(FPS) / 1000.0, 0.05)  # tope por si hay lag
             for event in pygame.event.get():
                 app.handle_event(event)
+            if app.state == "stats":
+                # Vaciar el buffer para que las partidas recientes aparezcan.
+                writer.flush()
+                # run_statistics es async para no congelar el navegador (pygbag).
+                if not await run_statistics(screen, LOG_DIR):
+                    app.running = False      # se cerro la ventana
+                app.state = "menu"
+                continue
             app.update(dt)
             app.draw()
             pygame.display.flip()

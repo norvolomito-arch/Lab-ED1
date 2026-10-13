@@ -2,11 +2,15 @@
 Pantalla de estadisticas de Persona 3.
 
 """
+import asyncio
 import os
 import pygame
 
 from telemetry import QualityReport, iter_events
-from statistics_engine import analyze, correlation_strength
+try:
+    from game.statistics_engine import analyze, correlation_strength
+except ImportError:  # cuando game/ esta directamente en sys.path
+    from statistics_engine import analyze, correlation_strength
 
 
 WIDTH = 800
@@ -157,7 +161,7 @@ def _quality_report(log_dir):
     return report
 
 
-def run_statistics(screen, log_dir):
+async def run_statistics(screen, log_dir):
     """
     Bucle independiente de la pantalla Statistics.
     ESC vuelve al menu.
@@ -181,10 +185,10 @@ def run_statistics(screen, log_dir):
     clock = pygame.time.Clock()
 
     variable_names = ("score", "duration", "damage")
-    variable_labels = ("PUNTAJE", "DURACION", "DANO")
+    variable_labels = ("PUNTAJE", "DURACION", "DAÑO")
     relation_labels = (
         ("Duracion", "Puntaje"),
-        ("Dano", "Nivel"),
+        ("Daño", "Nivel"),
     )
 
     while running:
@@ -222,9 +226,13 @@ def run_statistics(screen, log_dir):
             else:
                 _draw_quality(screen, font, _quality_report(log_dir))
             for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_F1:
-                    show_quality = False
+                if event.type == pygame.QUIT:
+                    return False
+                if event.type == pygame.KEYDOWN and event.key in (
+                        pygame.K_F1, pygame.K_ESCAPE):
+                    show_quality = False  # ESC tambien cierra el panel de calidad
             clock.tick(30)
+            await asyncio.sleep(0)  # cede el control (requisito de pygbag)
             continue
 
         screen.fill(BG)
@@ -239,6 +247,7 @@ def run_statistics(screen, log_dir):
                        25, 120, BAD)
             pygame.display.flip()
             clock.tick(30)
+            await asyncio.sleep(0)  # cede el control (requisito de pygbag)
             continue
 
         if tab == 0:
@@ -251,11 +260,15 @@ def run_statistics(screen, log_dir):
 
             items = [
                 ("n", summary["n"]),
+                ("Suma", "%.2f" % summary["sum"]),
+                ("Rango", "%.2f" % summary["range"]),
+                ("Varianza", "%.2f" % summary["variance"]),
+                ("Minimo", "%.2f" % summary["min"]),
+                ("Maximo", "%.2f" % summary["max"]),
                 ("Media", "%.2f" % summary["mean"]),
                 ("Mediana", "%.2f" % summary["median"]),
                 ("Desv. est.", "%.2f" % summary["std"]),
-                ("Minimo", "%.2f" % summary["min"]),
-                ("Maximo", "%.2f" % summary["max"]),
+                ("CV", "%.2f %%" % summary["cv"]),
                 ("P90", "%.2f" % summary["p90"]),
                 ("IQR", "%.2f" % summary["iqr"]),
             ]
@@ -264,7 +277,7 @@ def run_statistics(screen, log_dir):
                 col = i // 4
                 row = i % 4
                 _draw_text(screen, font, "%s: %s" % (name, value),
-                           50 + col * 300, 155 + row * 48)
+                           50 + col * 260, 155 + row * 48)
 
             _draw_text(screen, font,
                        "Sesiones completas analizadas: %d" %
@@ -292,23 +305,26 @@ def run_statistics(screen, log_dir):
             if relation == 0:
                 xs, ys, r = data["correlations"]["duration_score"]
                 _draw_scatter(screen, small, xs, ys, r,
-                              (55, 145, 690, 300))
+                              (55, 145, 690, 270))
             else:
                 xs, ys, r = data["correlations"]["damage_level"]
                 _draw_scatter(screen, small, xs, ys, r,
-                              (55, 145, 690, 300))
+                              (55, 145, 690, 270))
 
             diff = data["difficulty"]
+            for row, name in enumerate(("easy", "normal", "hard")):
+                _draw_text(screen, small,
+                           "%s: n=%d, media=%.2f, desv=%.2f" %
+                           (name.capitalize(), diff[name]["n"],
+                            diff[name]["mean"], diff[name]["std"]),
+                           55, 490 + 22 * row)
             _draw_text(screen, small,
-                       "Easy: n=%d, media=%.2f, desv=%.2f" %
-                       (diff["easy"]["n"], diff["easy"]["mean"],
-                        diff["easy"]["std"]), 55, 500)
-            _draw_text(screen, small,
-                       "Hard: n=%d, media=%.2f, desv=%.2f" %
-                       (diff["hard"]["n"], diff["hard"]["mean"],
-                        diff["hard"]["std"]), 55, 525)
+                       "Hard - Easy: %+.2f puntos (%+.1f%% respecto a easy)" %
+                       (diff["difference"], diff["percentage_vs_easy"]),
+                       55, 556)
 
         pygame.display.flip()
         clock.tick(30)
+        await asyncio.sleep(0)  # cede el control (requisito de pygbag)
 
     return True

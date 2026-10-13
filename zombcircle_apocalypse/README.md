@@ -12,39 +12,34 @@ python -m game.main
 
 ## Ejecutar en el navegador (pygbag)
 
-Requisitos: Python 3.10-3.12 recomendado, conexión a internet (pygbag descarga
-el runtime de pygame desde internet la primera vez) y un navegador moderno.
+Requisitos: Python 3.10 a 3.12 (con 3.13 o superior pygbag puede fallar),
+internet en la primera carga (el runtime de pygame se descarga de la web) y un
+navegador moderno. Ejecuta todo desde la carpeta que contiene `main.py`.
 
 ```bash
 python -m pip install --upgrade pygbag
-   cd /workspaces/Lab-ED1/zombcircle_apocalypse
-   pkill -f pygbag; pkill -f http.server
-   rm -f game/audio-pygbag.py
-   rm -rf build
-   python -m pygbag --build .
-      python -m http.server 8080 --directory "$(pwd)/build/web"
+rm -rf build                      # Windows: rmdir /s /q build
+python -m pygbag --build .        # genera build/web
+python -m http.server 8000 --directory build/web
 ```
 
-1. Espera a que la terminal muestre que sirve en `http://localhost:8000`
-   (en Codespaces, abre el puerto 8000 en la pestaña **Ports**).
-2. Abre **http://localhost:8000** en el navegador. NO abras `index.html` con
-   doble clic (`file://`): no funciona.
-3. La primera carga tarda (descarga el runtime). Cuando aparezca el mensaje
-   "Ready to start! Please click/touch page", haz clic en la página.
-4. Si se queda cargando: pulsa F12, abre la pestaña **Console** y revisa el
-   error; prueba Ctrl+Shift+R (recarga sin caché) o una ventana de incógnito.
+1. Abre **http://localhost:8000** (no `file://`; en Codespaces abre el puerto
+   8000 en la pestaña **Ports**).
+2. La primera carga tarda. Con "Ready to start! Please click/touch page",
+   haz clic en la página para iniciar el juego.
+3. Si se queda cargando: F12 > **Console** para ver el error, recarga sin
+   caché (Ctrl+Shift+R) o usa una ventana de incógnito; comprueba que el
+   puerto 8000 está libre (`python -m http.server 8001 ...` si no lo está).
+4. Para repetir el build desde cero: detén el servidor (Ctrl+C), borra
+   `build/` (`rm -rf build`) y vuelve a ejecutar `python -m pygbag --build .`.
 
-Si `pygbag` no responde o falla al arrancar:
-
-- Borra la carpeta `build/` y vuelve a ejecutar.
-- Cierra cualquier proceso usando el puerto 8000 o usa
-  `python -m pygbag --port 8001 .`.
-- Usa un entorno virtual con Python 3.11 o 3.12 (las versiones muy nuevas
-  de Python pueden no ser compatibles con pygbag).
-- Verifica que `main.py` esté en la carpeta donde ejecutas el comando.
-
-En el navegador el sistema de archivos es virtual: `logs/` y `config.json`
-no persisten entre recargas.
+En el navegador el sistema de archivos es virtual: `config.json` y las
+partidas nuevas NO persisten entre recargas (Settings lo avisa en pantalla).
+Por eso el build incluye la carpeta `logs/` y el contador
+`session_counter.txt` tal como estén en el repo; el juego abre la bitácora en
+modo "a" (agrega, no sobrescribe) y la pantalla Statistics la lee. Solo se
+usa `assets/music/theme.ogg` en web; el mismo `game/audio.py` sirve en local y
+en navegador.
 
 ## Icono y música
 
@@ -99,3 +94,16 @@ al recibir `SESSION_END`; los eventos siguen disponibles para otros análisis.
 Para demostrar tolerancia a corrupción sin alterar el original:
 `python tools/inject_corruption.py logs logs_corruptos`, y luego
 `python tools/check_log.py logs_corruptos`.
+
+## Generador de bitacoras y experimentos (Partes 6 a 8)
+
+Todo se ejecuta desde la raiz del repo. Las figuras usan solo primitivas de
+Pygame (SDL_VIDEODRIVER=dummy); los resultados quedan en `results/`.
+
+    python tools/gen_synthetic_log.py --events 100000 --out carpeta --seed 42
+    python tools/gen_synthetic_log.py --sessions 40 --out logs --seed 2024 --overwrite   # demo (borra events_NNN.log de logs/)
+    python tools/experiments/exp_a_buffer.py        # Experimento A -> results/exp_a.txt, exp_a.png
+    python tools/experiments/exp_bc_read.py         # Experimentos B y C -> summary_table.txt/.tex, exp_b.png, exp_c.png
+
+Los tiempos dependen de la maquina: corre los experimentos en el equipo cuyas
+especificaciones iran en el informe y completa el campo "Tipo de disco".

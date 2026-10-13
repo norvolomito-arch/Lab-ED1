@@ -9,6 +9,7 @@ json se usa SOLO aqui (config), nunca para la bitacora.
 """
 import json
 import os
+import sys
 
 import pygame
 
@@ -16,6 +17,8 @@ from game.game_logic import DIFFICULTIES
 
 DEFAULT_CONFIG = {"player": "player", "volume": 80, "difficulty": "normal"}
 MAX_NAME_LEN = 12
+IS_WEB = sys.platform == "emscripten"   # navegador (pygbag)
+WEB_NOTICE = "Web: los cambios no se guardan al recargar la pagina"
 ALLOWED_EXTRA_CHARS = "_-"
 
 
@@ -145,3 +148,7 @@ class SettingsScreen:
         hint = font.render("Up/Down: field   Left/Right: change   "
                            "Enter/Esc: save and back", True, (140, 140, 150))
         surface.blit(hint, hint.get_rect(center=(surface.get_width() // 2, 540)))
+        if IS_WEB:
+            # En el navegador el disco es virtual: config.json se pierde al recargar.
+            note = font.render(WEB_NOTICE, True, (230, 150, 80))
+            surface.blit(note, note.get_rect(center=(surface.get_width() // 2, 480)))

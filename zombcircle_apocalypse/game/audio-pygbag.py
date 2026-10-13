@@ -1,18 +1,27 @@
-"""Musica de fondo de Zombcircle Apocalypse (espacio reservado).
+"""Musica de fondo de Zombcircle Apocalypse (local y navegador).
 
-Coloca el archivo de musica en ``assets/music/`` con el nombre ``theme.ogg``
-(tambien se aceptan ``theme.wav`` y ``theme.mp3`` en ejecucion local). Si hay
-varios, se usa el primero que cargue bien. Si no existe ninguno, o el equipo no tiene dispositivo de audio (por ejemplo un
-Codespace), ``MusicPlayer`` no hace nada y el juego sigue normal.
+Coloca el archivo de musica en ``assets/music/`` con el nombre ``theme.ogg``.
+En ejecucion local tambien se aceptan ``theme.wav`` y ``theme.mp3``; en el
+navegador (pygbag, sys.platform == "emscripten") solo se usa ``theme.ogg``.
+Si hay varios, se usa el primero que cargue bien. Si no existe ninguno, o el
+equipo no tiene dispositivo de audio (por ejemplo un Codespace),
+``MusicPlayer`` no hace nada y el juego sigue normal.
 
-Para pygbag usa formato OGG: es el que mejor soporta el navegador.
+Un solo modulo sirve para ambos entornos: no hace falta una copia aparte
+para pygbag.
 """
 import os
+import sys
 
 import pygame
 
+# True cuando el juego corre dentro del navegador (pygbag / emscripten).
+IS_WEB = sys.platform == "emscripten"
+
 # Nombres aceptados, en orden de preferencia.
-MUSIC_FILENAMES = ("theme.ogg", "theme.ogg", "theme.ogg")
+MUSIC_FILENAMES_LOCAL = ("theme.ogg", "theme.ogg", "theme.ogg")
+MUSIC_FILENAMES_WEB = ("theme.ogg",)
+MUSIC_FILENAMES = MUSIC_FILENAMES_WEB if IS_WEB else MUSIC_FILENAMES_LOCAL
 
 
 def find_music_files(music_dir):
