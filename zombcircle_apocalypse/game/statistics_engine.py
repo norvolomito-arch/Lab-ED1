@@ -7,6 +7,17 @@ import os
 
 from telemetry import iter_events
 
+try:
+    from game.descriptive_stats import (
+        RunningStats, atipicos_iqr, atipicos_z, cuartiles, iqr_y_limites,
+        mediana, percentil_rango_mas_cercano,
+    )
+except ImportError:  # cuando la carpeta game/ esta directamente en sys.path
+    from descriptive_stats import (
+        RunningStats, atipicos_iqr, atipicos_z, cuartiles, iqr_y_limites,
+        mediana, percentil_rango_mas_cercano,
+    )
+
 
 def _mean(values):
     if not values:
@@ -136,35 +147,54 @@ def _numeric_values(sessions):
 
 
 def basic_distribution(values):
-    """Datos básicos necesarios para resumen/boxplot."""
-    data = sorted(float(v) for v in values)
-    if not data:
+    """Resumen de una variable numerica (usa descriptive_stats, Persona 2).
+
+    - Medidas de UNA pasada (n, suma, min, max, rango, media, varianza,
+      desviacion, CV): RunningStats las acumula sin guardar los datos.
+    - Medidas de ORDEN (mediana, cuartiles, P90, atipicos): usan la lista
+      ordenada, por eso necesitan memoria proporcional a n.
+    """
+    stats = RunningStats()
+    for v in values:
+        stats.add(float(v))
+
+    if stats.n == 0:
         return {
-            "n": 0, "mean": 0.0, "std": 0.0, "min": 0.0, "max": 0.0,
+            "n": 0, "sum": 0.0, "mean": 0.0, "variance": 0.0, "std": 0.0,
+            "cv": 0.0, "min": 0.0, "max": 0.0, "range": 0.0,
             "median": 0.0, "q1": 0.0, "q3": 0.0, "p90": 0.0,
-            "iqr": 0.0, "lower": 0.0, "upper": 0.0, "outliers": []
+            "iqr": 0.0, "lower": 0.0, "upper": 0.0,
+            "outliers": [], "z_outliers": [],
         }
 
-    q1, median, q3 = _quartiles(data)
+    data = sorted(float(v) for v in values)
+    if stats.n == 1:
+        q1 = q3 = data[0]
+    else:
+        q1, q3 = cuartiles(data)
     iqr = q3 - q1
     lower = q1 - 1.5 * iqr
     upper = q3 + 1.5 * iqr
-    outliers = [x for x in data if x < lower or x > upper]
 
     return {
-        "n": len(data),
-        "mean": _mean(data),
-        "std": _sample_std(data),
-        "min": data[0],
-        "max": data[-1],
-        "median": median,
+        "n": stats.n,
+        "sum": stats.total,
+        "mean": stats.media,
+        "variance": stats.varianza_muestral or 0.0,
+        "std": stats.desviacion or 0.0,
+        "cv": stats.cv_porcentaje or 0.0,
+        "min": stats.minimum,
+        "max": stats.maximum,
+        "range": stats.rango,
+        "median": mediana(data),
         "q1": q1,
         "q3": q3,
-        "p90": _percentile_sorted(data, 0.90),
+        "p90": percentil_rango_mas_cercano(data, 90),
         "iqr": iqr,
         "lower": lower,
         "upper": upper,
-        "outliers": outliers,
+        "outliers": [x for x in data if x < lower or x > upper],
+        "z_outliers": atipicos_z(data, 3.0),
     }
 
 
