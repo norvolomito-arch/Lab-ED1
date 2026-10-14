@@ -1,0 +1,21 @@
+CPU: AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD
+Nucleos logicos: 16
+RAM: 63.3 GiB
+Tipo de disco: COMPLETAR (SSD NVMe / SSD SATA / HDD)
+Sistema operativo: Windows 11
+Python: 3.13.3
+
+EXPERIMENTO A - tamano de buffer (escritura de 100,000 eventos)
+Repeticiones por buffer: 5 | max_bytes: 524288 | seed: 42
+
+Buffer | Min (s) | Mediana (s) | Eventos/s (mediana) | Aceleracion vs buffer 1
+     1 |   0.979 |       1.022 |              97,824 | 1.00x
+    10 |   0.514 |       0.618 |             161,838 | 1.65x
+   100 |   0.458 |       0.464 |             215,496 | 2.20x
+  1000 |   0.436 |       0.449 |             222,509 | 2.27x
+
+Tiempos individuales (s):
+buffer 1: 1.022, 0.981, 0.979, 1.225, 1.894
+buffer 10: 0.618, 0.514, 0.518, 0.955, 1.004
+buffer 100: 0.460, 0.464, 0.458, 0.977, 0.936
+buffer 1000: 0.449, 0.436, 0.449, 0.813, 0.809

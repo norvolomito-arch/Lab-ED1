@@ -1,5 +1,20 @@
+# ======================================================================
+# ARCHIVO: tests/test_quality.py - pruebas del reporte de calidad
+# ======================================================================
+# QUE PRUEBA: telemetry/quality.py: que cuente bien archivos, lineas validas,
+# corruptas y sesiones incompletas, que el formato sea el del laboratorio y que
+# gaste memoria constante aunque la bitacora crezca.
+# QUE SON LOS TESTS: son programitas que prueban que el codigo funciona.
+# Cada funcion 'test_...' hace una comprobacion y, si el resultado no es el
+# esperado, falla y avisa. Sirven para detectar errores antes de entregar.
+# COMO CORRERLOS (desde la carpeta del proyecto):  python -m unittest discover -s tests
+# PALABRAS: 'assertEqual(a, b)' = comprueba que a y b sean iguales;
+# 'setUp' = preparacion antes de cada prueba; 'tearDown' = limpieza despues.
+# ======================================================================
+
 """Tests for streaming quality reporting."""
 
+# Librerias: capturar lo impreso, memoria, rutas y pruebas.
 import contextlib
 import io
 import os
@@ -7,30 +22,38 @@ import tempfile
 import tracemalloc
 import unittest
 
+# Lo que vamos a probar.
 from telemetry import QualityReport, iter_events
 
 
+# Reporte de prueba que ademas anota si se llamo a finish().
 class FinishTrackingReport(QualityReport):
     """Track calls to finish without changing the report protocol."""
 
+    # Parte con 'finish no llamado'.
     def __init__(self):
         super().__init__()
         self.finish_calls = 0
 
+    # Anota la llamada y ejecuta el comportamiento normal.
     def finish(self):
         self.finish_calls += 1
         super().finish()
 
 
+# PRUEBAS DEL REPORTE DE CALIDAD.
 class QualityReportTests(unittest.TestCase):
+    # Antes de cada prueba: carpeta temporal.
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.log_dir = os.path.join(self.temp_dir.name, "logs")
         os.makedirs(self.log_dir)
 
+    # Despues: se borra.
     def tearDown(self):
         self.temp_dir.cleanup()
 
+    # Ayudante: crea un archivo de bitacora de prueba.
     def write_log(self, filename, contents):
         path = os.path.join(self.log_dir, filename)
         with open(path, "w", encoding="utf-8") as log_file:
@@ -38,6 +61,7 @@ class QualityReportTests(unittest.TestCase):
                 log_file.write(line)
         return path
 
+    # Los conteos suben al leer con iter_events.
     def test_counts_are_updated_by_iter_events(self):
         self.write_log("events_001.log", (
             "1.0|S0001|SESSION_START|player=ana\n",
@@ -62,6 +86,8 @@ class QualityReportTests(unittest.TestCase):
         self.assertEqual(report.corrupt, 2)
         self.assertEqual(report.incomplete_sessions, 1)
 
+    # Una sesion puede empezar en un archivo y terminar en otro; un
+    # SESSION_START repetido no la cuenta dos veces.
     def test_session_ids_span_files_and_duplicate_events_are_idempotent(self):
         self.write_log("events_001.log", (
             "1.0|cross|SESSION_START|\n",
@@ -80,6 +106,7 @@ class QualityReportTests(unittest.TestCase):
         self.assertEqual(report.incomplete_sessions, 1)
         self.assertEqual(report.valid, 5)
 
+    # El texto del reporte coincide con el ejemplo del laboratorio.
     def test_format_matches_the_section_seven_example(self):
         report = QualityReport()
         for session_number in range(4):
@@ -99,6 +126,7 @@ class QualityReportTests(unittest.TestCase):
         )
         self.assertEqual(report.format(), expected)
 
+    # Reporte vacio: porcentajes 0.00%.
     def test_empty_report_formats_zero_percentages(self):
         report = QualityReport()
         self.assertEqual(report.format(), (
@@ -109,6 +137,7 @@ class QualityReportTests(unittest.TestCase):
             "Sesiones incompletas: 0 (SESSION_START sin SESSION_END)"
         ))
 
+    # print_report muestra el texto formateado.
     def test_print_report_prints_formatted_text(self):
         report = QualityReport()
         output = io.StringIO()
@@ -116,6 +145,7 @@ class QualityReportTests(unittest.TestCase):
             report.print_report()
         self.assertEqual(output.getvalue(), report.format() + "\n")
 
+    # Si se abandona la lectura a la mitad, finish() NO se llama.
     def test_finish_is_not_called_when_generator_is_abandoned(self):
         self.write_log("events_001.log", (
             "1.0|S0001|SESSION_START|player=ana\n",
@@ -130,6 +160,7 @@ class QualityReportTests(unittest.TestCase):
         self.assertEqual(report.finish_calls, 0)
         self.assertEqual(report.incomplete_sessions, 1)
 
+    # Si se lee todo, finish() SI se llama.
     def test_finish_is_called_after_complete_traversal(self):
         self.write_log("events_001.log", ("1.0|S0001|CUSTOM|value=1\n",))
         report = FinishTrackingReport()
@@ -139,6 +170,7 @@ class QualityReportTests(unittest.TestCase):
 
         self.assertEqual(report.finish_calls, 1)
 
+    # La memoria usada no crece con la cantidad de lineas.
     def test_streaming_memory_does_not_scale_with_number_of_lines(self):
         small_path = os.path.join(self.log_dir, "events_001.log")
         large_dir = os.path.join(self.temp_dir.name, "large_logs")
@@ -169,5 +201,6 @@ class QualityReportTests(unittest.TestCase):
         self.assertLessEqual(large_peak, small_peak + 32768)
 
 
+# Permite correr solo este archivo.
 if __name__ == "__main__":
     unittest.main()

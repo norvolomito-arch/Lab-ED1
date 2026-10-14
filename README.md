@@ -1,5 +1,5 @@
 # Lab-ED1
-Grupo #2. Juego Arena Shooter y telemetría para Estructura de Datos I.
+Grupo #2. Juego Zombcircle Apocalypse y telemetría para Estructura de Datos I.
 
 ## Ejecución
 
@@ -10,17 +10,43 @@ Para jugar localmente, instala `pygame-ce` (se importa como `pygame`):
 python -m game.main
 ```
 
-Para ejecutar en navegador, instala Pygbag por separado:
-`python -m pip install pygbag`. Desde la raíz del repositorio, genera el bundle
-y sírvelo de forma estática:
+## Ejecutar en el navegador (pygbag)
+
+Requisitos: Python 3.10 a 3.12 (con 3.13 o superior pygbag puede fallar),
+internet en la primera carga (el runtime de pygame se descarga de la web) y un
+navegador moderno. Ejecuta todo desde la carpeta que contiene `main.py`.
 
 ```bash
-pygbag --build .
-python -m http.server 8000 --bind 0.0.0.0 --directory build/web
+python -m pip install --upgrade pygbag
+rm -rf build                      # Windows: rmdir /s /q build
+python -m pygbag --build .        # genera build/web
+python -m http.server 8000 --directory build/web
 ```
 
-En Codespaces, abre el puerto 8000 desde la pestaña **Ports**. Este método
-conserva las URLs HTTPS del runtime CDN de Pygbag.
+1. Abre **http://localhost:8000** (no `file://`; en Codespaces abre el puerto
+   8000 en la pestaña **Ports**).
+2. La primera carga tarda. Con "Ready to start! Please click/touch page",
+   haz clic en la página para iniciar el juego.
+3. Si se queda cargando: F12 > **Console** para ver el error, recarga sin
+   caché (Ctrl+Shift+R) o usa una ventana de incógnito; comprueba que el
+   puerto 8000 está libre (`python -m http.server 8001 ...` si no lo está).
+4. Para repetir el build desde cero: detén el servidor (Ctrl+C), borra
+   `build/` (`rm -rf build`) y vuelve a ejecutar `python -m pygbag --build .`.
+
+En el navegador el sistema de archivos es virtual: `config.json` y las
+partidas nuevas NO persisten entre recargas (Settings lo avisa en pantalla).
+Por eso el build incluye la carpeta `logs/` y el contador
+`session_counter.txt` tal como estén en el repo; el juego abre la bitácora en
+modo "a" (agrega, no sobrescribe) y la pantalla Statistics la lee. Solo se
+usa `assets/music/theme.ogg` en web; el mismo `game/audio.py` sirve en local y
+en navegador.
+
+## Icono y música
+
+- Icono: `assets/icon.png` (ventana local) y `favicon.png` (pestaña del
+  navegador con pygbag).
+- Música: guarda el archivo como `assets/music/theme.ogg`; ver
+  `assets/music/LEEME.md`. Sin archivo, el juego funciona en silencio.
 
 ## Pruebas
 
@@ -68,3 +94,19 @@ al recibir `SESSION_END`; los eventos siguen disponibles para otros análisis.
 Para demostrar tolerancia a corrupción sin alterar el original:
 `python tools/inject_corruption.py logs logs_corruptos`, y luego
 `python tools/check_log.py logs_corruptos`.
+
+## Reporte en consola, generador de bitacoras y experimentos
+
+    python tools/report.py [carpeta_logs]   # tablas 8.1-8.6 (frecuencias, embudo, Pearson, Easy vs Hard)
+
+
+Todo se ejecuta desde la raiz del repo. Las figuras usan solo primitivas de
+Pygame (SDL_VIDEODRIVER=dummy); los resultados quedan en `results/`.
+
+    python tools/gen_synthetic_log.py --events 100000 --out carpeta --seed 42
+    python tools/gen_synthetic_log.py --sessions 40 --out logs --seed 2024 --overwrite   # demo (borra events_NNN.log de logs/)
+    python tools/experiments/exp_a_buffer.py        # Experimento A -> results/exp_a.txt, exp_a.png
+    python tools/experiments/exp_bc_read.py         # Experimentos B y C -> summary_table.txt/.tex, exp_b.png, exp_c.png
+
+Los tiempos dependen de la maquina: corre los experimentos en el equipo cuyas
+especificaciones iran en el informe y completa el campo "Tipo de disco".
