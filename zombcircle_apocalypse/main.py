@@ -2,16 +2,6 @@
 # dependencies = [
 #     "pygame-ce",
 # ]
-# ======================================================================
-# ARCHIVO: main.py (raiz) - el boton de encendido del juego
-# ======================================================================
-# QUE ES: el archivo que se ejecuta para arrancar el juego.
-# PARA QUE SIRVE: casi no tiene logica; solo llama a la funcion main() que vive
-# en game/main.py. Existe en la raiz porque pygbag (la herramienta que convierte
-# el juego a pagina web) busca un 'main.py' aqui.
-# COMO SE USA: python main.py   (desde dentro de la carpeta zombcircle_apocalypse)
-# ======================================================================
-
 # ///
 """Punto de entrada de Zombcircle Apocalypse (local y pygbag).
 
