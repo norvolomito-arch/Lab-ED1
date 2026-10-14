@@ -1,38 +1,63 @@
+# ======================================================================
+# ARCHIVO: tests/test_web_build.py - pruebas de preparacion para la web (pygbag)
+# ======================================================================
+# QUE PRUEBA: que el proyecto este listo para convertirse a pagina web:
+#   - Hay una bitacora real pregenerada en logs/ y .gitignore no la excluye.
+#   - La bitacora esta limpia y tiene 25 sesiones; el contador no choca con ids.
+#   - Al arrancar se AGREGA a la bitacora, no se sobrescribe.
+#   - Hay un solo audio y es .ogg; el main.py de la raiz cumple lo que pide pygbag.
+# QUE SON LOS TESTS: son programitas que prueban que el codigo funciona.
+# Cada funcion 'test_...' hace una comprobacion y, si el resultado no es el
+# esperado, falla y avisa. Sirven para detectar errores antes de entregar.
+# COMO CORRERLOS (desde la carpeta del proyecto):  python -m unittest discover -s tests
+# PALABRAS: 'assertEqual(a, b)' = comprueba que a y b sean iguales;
+# 'setUp' = preparacion antes de cada prueba; 'tearDown' = limpieza despues.
+# ======================================================================
+
 """Pruebas de preparacion para pygbag (Parte 9): bitacora real y audio unico."""
+# Librerias para revisar codigo, copiar carpetas y probar.
 import ast
 import os
 import shutil
 import tempfile
 import unittest
 
+# Lo necesario para leer y escribir bitacoras.
 from telemetry import TelemetryWriter, QualityReport, iter_events
 from telemetry.common import list_log_files
 
+# Rutas del proyecto y de la carpeta logs.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_DIR = os.path.join(ROOT, "logs")
 
 
+# Ayudante: lee los patrones que .gitignore ignora.
 def _ignored_patterns():
     with open(os.path.join(ROOT, ".gitignore"), encoding="utf-8") as f:
         return [l.strip() for l in f if l.strip() and not l.startswith("#")]
 
 
+# Si todavia no hay bitacora real, la prueba se salta.
 def _exigir_bitacora_real():
     """Salta la prueba si logs/ aun no tiene una bitacora real."""
     if not list_log_files(LOG_DIR):
         raise unittest.SkipTest("Aún no hay bitácora real")
 
 
+# PRUEBAS DE LA VERSION WEB.
 class TestWebBuild(unittest.TestCase):
+    # Existe una bitacora pregenerada.
     def test_hay_bitacora_pregenerada(self):
         _exigir_bitacora_real()
         self.assertTrue(list_log_files(LOG_DIR))
 
+    # .gitignore no excluye los logs (si no, no viajarian al navegador).
     def test_gitignore_no_excluye_la_bitacora(self):
         for pat in _ignored_patterns():
             self.assertNotIn(pat.rstrip("/"), ("logs", "*.log", "events_*.log",
                                                "session_counter.txt"))
 
+    # La bitacora real no tiene lineas corruptas y tiene 25 sesiones completas.
     def test_bitacora_real_limpia_y_con_25_sesiones(self):
         _exigir_bitacora_real()
         report = QualityReport()
@@ -43,6 +68,7 @@ class TestWebBuild(unittest.TestCase):
         self.assertEqual(report.corrupt, 0)
         self.assertGreaterEqual(len(ends), 25)
 
+    # El contador de sesiones continua despues del ultimo id ya escrito.
     def test_contador_no_choca_con_ids_de_la_bitacora(self):
         # En web el contador viaja en el build; si fuera menor que el id
         # maximo de la bitacora, una partida nueva repetiria un session_id.
@@ -54,6 +80,7 @@ class TestWebBuild(unittest.TestCase):
             contador = int(f.readline())
         self.assertGreaterEqual(contador, mayor)
 
+    # Al abrir el escritor sobre los logs existentes se agrega sin borrar.
     def test_arranque_web_agrega_sin_sobrescribir(self):
         _exigir_bitacora_real()
         tmp = tempfile.mkdtemp()
@@ -72,11 +99,13 @@ class TestWebBuild(unittest.TestCase):
         finally:
             shutil.rmtree(tmp)
 
+    # No debe existir un segundo archivo de audio (audio-pygbag.py) ni mencionarse en el README.
     def test_un_solo_audio(self):
         self.assertFalse(os.path.exists(os.path.join(ROOT, "game", "audio-pygbag.py")))
         with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as f:
             self.assertNotIn("audio-pygbag", f.read())
 
+    # En la web solo se acepta .ogg.
     def test_audio_web_solo_ogg(self):
         try:
             from game import audio
@@ -85,6 +114,8 @@ class TestWebBuild(unittest.TestCase):
         self.assertEqual(audio.MUSIC_FILENAMES_WEB, ("theme.ogg",))
         self.assertIn("theme.ogg", audio.MUSIC_FILENAMES_LOCAL)
 
+    # El main.py de la raiz importa pygame y su ultima instruccion es
+    # asyncio.run(main()), como exige pygbag.
     def test_main_raiz_cumple_pygbag(self):
         with open(os.path.join(ROOT, "main.py"), encoding="utf-8") as f:
             tree = ast.parse(f.read())
@@ -95,6 +126,8 @@ class TestWebBuild(unittest.TestCase):
         self.assertTrue(importa_pygame)
         self.assertEqual(ultima, "asyncio.run(main())")
 
+    # Los archivos de game/ y telemetry/ no importan librerias que dan problemas
+    # en el navegador (threading, socket, subprocess...).
     def test_sin_librerias_problematicas_en_el_juego(self):
         prohibidos = {"threading", "socket", "subprocess", "multiprocessing",
                       "tracemalloc", "platform"}

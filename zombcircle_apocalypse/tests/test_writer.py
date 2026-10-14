@@ -1,25 +1,46 @@
+# ======================================================================
+# ARCHIVO: tests/test_writer.py - pruebas del escritor de bitacora
+# ======================================================================
+# QUE PRUEBA: telemetry/writer.py: que nunca sobrescriba, que cada linea tenga 4
+# campos, que el tiempo siempre crezca, que el buffer, el flush y la rotacion
+# funcionen, y que el cierre seguro guarde todo.
+# QUE SON LOS TESTS: son programitas que prueban que el codigo funciona.
+# Cada funcion 'test_...' hace una comprobacion y, si el resultado no es el
+# esperado, falla y avisa. Sirven para detectar errores antes de entregar.
+# COMO CORRERLOS (desde la carpeta del proyecto):  python -m unittest discover -s tests
+# PALABRAS: 'assertEqual(a, b)' = comprueba que a y b sean iguales;
+# 'setUp' = preparacion antes de cada prueba; 'tearDown' = limpieza despues.
+# ======================================================================
+
 """Tests for incremental telemetry writing."""
 
+# Librerias para rutas, carpetas temporales y pruebas.
 import os
 import tempfile
 import unittest
 
+# Lo que vamos a probar.
 from telemetry import TelemetryWriter, iter_events, parse_line
 
 
+# PRUEBAS DEL ESCRITOR.
 class TelemetryWriterTests(unittest.TestCase):
+    # Antes de cada prueba: carpeta temporal.
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.log_dir = os.path.join(self.temp_dir.name, "logs")
 
+    # Despues: se borra la carpeta.
     def tearDown(self):
         self.temp_dir.cleanup()
 
+    # Ayudante: lee las lineas de un archivo de prueba.
     def read_lines(self, path):
         """Read a small test log using the required lazy iteration pattern."""
         with open(path, "r", encoding="utf-8") as log_file:
             return [line for line in log_file]
 
+    # Abrir otra vez NO borra lo escrito antes (modo agregar).
     def test_reopening_appends_instead_of_overwriting(self):
         first = TelemetryWriter(self.log_dir, buffer_size=1)
         first.log("SESSION_START", "S0001", player="ana")
@@ -34,6 +55,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertEqual(parse_line(lines[0])["event_type"], "SESSION_START")
         self.assertEqual(parse_line(lines[1])["event_type"], "SESSION_END")
 
+    # Cada linea tiene exactamente 4 campos separados por '|'.
     def test_each_event_has_exactly_four_fields(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=1)
         writer.log("SESSION_START", "S0001", player="ana", difficulty="easy")
@@ -43,6 +65,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertEqual(len(line.split("|")), 4)
         self.assertIsNotNone(parse_line(line))
 
+    # Cada hora es mayor que la anterior.
     def test_timestamps_increase_strictly(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=10)
         for event_number in range(5):
@@ -54,6 +77,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertTrue(all(left < right for left, right in zip(
             timestamps, timestamps[1:])))
 
+    # Al llenarse el buffer, se escribe a disco.
     def test_buffer_flushes_when_full(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=3)
         writer.log("CUSTOM", "S0001", value=1)
@@ -66,6 +90,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertGreater(os.path.getsize(writer.current_path), 0)
         writer.close()
 
+    # flush() escribe lo pendiente.
     def test_manual_flush_writes_pending_lines(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=10)
         writer.log("CUSTOM", "S0001", value=1)
@@ -77,6 +102,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertEqual(len(self.read_lines(writer.current_path)), 1)
         writer.close()
 
+    # Al pasar el limite de tamano se crean events_001, 002, ...
     def test_rotation_creates_sequential_files(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=1, max_bytes=1)
         for event_number in range(3):
@@ -87,6 +113,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertEqual(names, ["events_001.log", "events_002.log",
                                  "events_003.log"])
 
+    # Al reabrir, se continua en el ultimo archivo existente.
     def test_writer_continues_from_latest_existing_file(self):
         first = TelemetryWriter(self.log_dir, buffer_size=1, max_bytes=10000)
         first.log("CUSTOM", "S0001", value=1)
@@ -99,6 +126,7 @@ class TelemetryWriterTests(unittest.TestCase):
         second.close()
         self.assertEqual(len(self.read_lines(first_path)), 2)
 
+    # Cerrar dos veces no da error.
     def test_close_is_idempotent(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=10)
         writer.log("CUSTOM", "S0001", value=1)
@@ -106,6 +134,7 @@ class TelemetryWriterTests(unittest.TestCase):
         writer.close()
         self.assertEqual(len(self.read_lines(writer.current_path)), 1)
 
+    # Con 'with', se guarda todo aunque ocurra un error dentro.
     def test_context_manager_flushes_even_when_body_raises(self):
         with self.assertRaises(RuntimeError):
             with TelemetryWriter(self.log_dir, buffer_size=10) as writer:
@@ -115,6 +144,7 @@ class TelemetryWriterTests(unittest.TestCase):
         log_path = os.path.join(self.log_dir, "events_001.log")
         self.assertEqual(len(self.read_lines(log_path)), 1)
 
+    # Con try/finally tambien se vacia el buffer.
     def test_try_finally_flushes_pending_lines(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=10)
         try:
@@ -124,6 +154,7 @@ class TelemetryWriterTests(unittest.TestCase):
 
         self.assertEqual(len(self.read_lines(writer.current_path)), 1)
 
+    # Un valor con | ; = % se escribe escapado y se lee igual al original.
     def test_delimiters_round_trip_through_reader(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=1)
         original = "ana|blue;level=3"
@@ -135,6 +166,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertEqual(events[0]["session_id"], "S|0001")
         self.assertEqual(events[0]["params"]["player"], original)
 
+    # Los valores vacios se guardan como 'none' para no corromper la linea.
     def test_empty_values_are_written_as_valid_sentinels(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=1)
         writer.log("CUSTOM", "S0001", empty="", missing=None)
@@ -144,6 +176,7 @@ class TelemetryWriterTests(unittest.TestCase):
         self.assertEqual(event["params"]["empty"], "none")
         self.assertEqual(event["params"]["missing"], "none")
 
+    # Se escribe durante la partida, no solo al cerrar.
     def test_buffer_does_not_wait_until_close_to_write(self):
         writer = TelemetryWriter(self.log_dir, buffer_size=4, max_bytes=100000)
         for event_number in range(4):
@@ -159,5 +192,6 @@ class TelemetryWriterTests(unittest.TestCase):
         writer.close()
 
 
+# Permite correr solo este archivo.
 if __name__ == "__main__":
     unittest.main()

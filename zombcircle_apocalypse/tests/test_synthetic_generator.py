@@ -1,4 +1,19 @@
+# ======================================================================
+# ARCHIVO: tests/test_synthetic_generator.py - pruebas del generador de bitacoras falsas
+# ======================================================================
+# QUE PRUEBA: tools/gen_synthetic_log.py: que con la misma semilla genere los mismos
+# bytes, que cuente exacto, rote archivos, inserte lineas corruptas detectables y
+# que las sesiones sean coherentes (hard = mas dano y menos puntaje que easy).
+# QUE SON LOS TESTS: son programitas que prueban que el codigo funciona.
+# Cada funcion 'test_...' hace una comprobacion y, si el resultado no es el
+# esperado, falla y avisa. Sirven para detectar errores antes de entregar.
+# COMO CORRERLOS (desde la carpeta del proyecto):  python -m unittest discover -s tests
+# PALABRAS: 'assertEqual(a, b)' = comprueba que a y b sean iguales;
+# 'setUp' = preparacion antes de cada prueba; 'tearDown' = limpieza despues.
+# ======================================================================
+
 """Pruebas del generador de bitacoras sinteticas (tools/gen_synthetic_log.py)."""
+# Librerias para capturar salida, azar, rutas y pruebas.
 import contextlib
 import io
 import os
@@ -6,11 +21,14 @@ import random
 import tempfile
 import unittest
 
+# Lector y reporte (para verificar lo generado).
 from telemetry import QualityReport, iter_events, parse_line
 from telemetry.common import list_log_files
+# El generador que se prueba.
 from tools import gen_synthetic_log as gen
 
 
+# Ayudante: lee todos los archivos de una bitacora como bytes.
 def leer_bytes(carpeta):
     """Lista de (nombre, bytes) de todos los archivos de la bitacora."""
     salida = []
@@ -20,21 +38,27 @@ def leer_bytes(carpeta):
     return salida
 
 
+# PRUEBAS DEL GENERADOR.
 class SyntheticGeneratorTests(unittest.TestCase):
+    # Antes de cada prueba: carpeta temporal.
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
 
+    # Despues: se borra.
     def tearDown(self):
         self.tmp.cleanup()
 
+    # Ayudante: crea una subcarpeta con nombre.
     def carpeta(self, nombre):
         return os.path.join(self.tmp.name, nombre)
 
+    # Ayudante: calcula el reporte de calidad de una carpeta.
     def calidad(self, carpeta):
         reporte = QualityReport()
         eventos = list(iter_events(carpeta, report=reporte))
         return reporte, eventos
 
+    # Misma semilla = mismos bytes.
     def test_mismo_seed_mismos_bytes(self):
         a, b, c = self.carpeta("a"), self.carpeta("b"), self.carpeta("c")
         gen.generate(a, 3000, seed=7, max_bytes=20000, corrupt_rate=0.03)
@@ -43,6 +67,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         self.assertEqual(leer_bytes(a), leer_bytes(b))
         self.assertNotEqual(leer_bytes(a), leer_bytes(c))
 
+    # Sin corrupcion pedida, cero lineas corruptas.
     def test_sin_corrupcion_cero_lineas_corruptas(self):
         d = self.carpeta("limpia")
         info = gen.generate(d, 4000, seed=1, corrupt_rate=0.0)
@@ -52,6 +77,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         self.assertEqual(reporte.lines_read, info["lines"])
         self.assertEqual(reporte.incomplete_sessions, 0)
 
+    # Se escribe exactamente la cantidad de eventos pedida.
     def test_conteo_exacto_de_eventos(self):
         for n in (2, 3, 4, 5, 7, 40, 100, 1234):
             d = self.carpeta("n%d" % n)
@@ -61,6 +87,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
             self.assertEqual(reporte.valid, n, n)
             self.assertEqual(reporte.incomplete_sessions, 0, n)
 
+    # Con un limite pequeno se crean varios archivos.
     def test_rotacion_con_max_bytes_pequeno(self):
         d = self.carpeta("rot")
         info = gen.generate(d, 2000, seed=5, max_bytes=4096)
@@ -73,6 +100,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         self.assertEqual(reporte.valid, 2000)
         self.assertEqual(reporte.files, len(nombres))
 
+    # La fraccion de lineas corruptas detectada coincide con la pedida.
     def test_corrupcion_detectada_aproximadamente(self):
         d = self.carpeta("corr")
         info = gen.generate(d, 4000, seed=9, corrupt_rate=0.05)
@@ -82,6 +110,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         self.assertEqual(reporte.valid, 4000)
         self.assertAlmostEqual(porcentaje, 0.05, delta=0.005)
 
+    # Pedir corrupcion no cambia los eventos validos.
     def test_eventos_validos_no_dependen_de_la_corrupcion(self):
         limpia, sucia = self.carpeta("l"), self.carpeta("s")
         gen.generate(limpia, 1500, seed=11, corrupt_rate=0.0)
@@ -90,6 +119,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         _, ev_sucia = self.calidad(sucia)
         self.assertEqual(ev_limpia, ev_sucia)
 
+    # Toda linea corrupta fabricada es rechazada por el lector.
     def test_toda_linea_corrupta_generada_es_rechazada(self):
         rng = random.Random(123)
         tipos = set()
@@ -102,6 +132,9 @@ class SyntheticGeneratorTests(unittest.TestCase):
             tipos.add(texto.count("|"))
         self.assertGreater(len(tipos), 3)   # hubo variedad de formas
 
+    # Cada sesion empieza con SESSION_START y termina con SESSION_END; los niveles
+    # cuadran con los LEVEL_UP; si murio hay un PLAYER_DEATH justo antes del final; las
+    # horas siempre crecen y la duracion coincide con las horas.
     def test_sesiones_coherentes(self):
         d = self.carpeta("coh")
         gen.generate(d, 6000, seed=21)
@@ -138,6 +171,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
             self.assertAlmostEqual(fin["duration"],
                                    evs[-1]["timestamp"] - inicio, delta=0.06)
 
+    # En hard se recibe mas dano y se saca menos puntaje que en easy.
     def test_hard_mas_dano_y_menos_puntaje_que_easy(self):
         d = self.carpeta("dif")
         gen.generate(d, 40000, seed=2)
@@ -164,6 +198,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         # Duracion y puntaje correlacionados: sesiones largas puntuan mas.
         self.assertGreater(max(puntaje.values()), 5 * media(puntaje.values()))
 
+    # Modo '--sessions': cantidad exacta de sesiones.
     def test_modo_sesiones(self):
         d = self.carpeta("ses")
         info = gen.generate(d, seed=2024, n_sessions=40)
@@ -174,6 +209,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         self.assertEqual(reporte.valid, info["events"])
         self.assertEqual(reporte.incomplete_sessions, 0)
 
+    # No se pisan bitacoras existentes salvo con overwrite.
     def test_overwrite_y_proteccion(self):
         d = self.carpeta("ow")
         gen.generate(d, 100, seed=1)
@@ -188,6 +224,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         reporte, _ = self.calidad(d)
         self.assertEqual(reporte.valid, 50)
 
+    # Argumentos imposibles dan error claro.
     def test_argumentos_invalidos(self):
         d = self.carpeta("bad")
         with self.assertRaises(ValueError):
@@ -201,6 +238,7 @@ class SyntheticGeneratorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gen.generate(d, 10, corrupt_rate=-0.1)
 
+    # La interfaz de terminal funciona.
     def test_linea_de_comandos(self):
         d = self.carpeta("cli")
         salida = io.StringIO()

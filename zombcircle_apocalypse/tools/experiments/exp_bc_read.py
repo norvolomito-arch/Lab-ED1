@@ -1,3 +1,15 @@
+# ======================================================================
+# ARCHIVO: tools/experiments/exp_bc_read.py - EXPERIMENTOS B y C (lectura y memoria)
+# ======================================================================
+# QUE ES: dos experimentos para el informe.
+#   B = ¿que tan rapido se lee la bitacora? (eventos por segundo)
+#   C = ¿cuanta memoria se gasta leyendo 'perezoso' (evento a evento) versus
+#       guardando todo en una lista?
+# Se prueban bitacoras de 5 000, 50 000 y 100 000 eventos. Guarda una tabla
+# (texto y LaTeX) y dos graficas en results/.
+# COMO SE USA:  python tools/experiments/exp_bc_read.py
+# ======================================================================
+
 """Experimentos B (rendimiento de lectura) y C (lazy vs lista) + tabla resumen.
 
     python tools/experiments/exp_bc_read.py
@@ -16,6 +28,8 @@ tools/gen_synthetic_log.py):
 
 Salidas en results/: summary_table.txt, summary_table.tex, exp_b.png, exp_c.png.
 """
+# Librerias estandar: opciones de terminal, recolector de basura, rutas, expresiones
+# regulares, carpetas temporales, cronometro y tracemalloc (mide memoria).
 import argparse
 import gc
 import os
@@ -26,20 +40,26 @@ import tempfile
 import time
 import tracemalloc
 
+# Para importar 'common' de esta carpeta.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Utilidades de los experimentos.
 from common import (BASE_DIR, RESULTS_DIR, bytes_legible, especificaciones,
                     formato_specs, mediana)
 
+# Escritor, lector y generador de eventos falsos.
 from telemetry import TelemetryWriter, iter_events
 from telemetry.common import list_log_files
 from tools.gen_synthetic_log import build_events
 
+# Tamanos a probar, limite de archivo y titulos de columnas de la tabla.
 SIZES = (5000, 50000, 100000)
 MAX_BYTES = 512 * 1024
 CABECERA = ["Eventos", "Tamaño archivo", "T. escritura", "T. lectura",
             "Eventos/s", "Mem. perezosa", "Mem. lista"]
 
 
+# Busca en game/main.py cuanto vale BUFFER_SIZE para usar el mismo
+# valor que el juego (si no lo encuentra, 25).
 def buffer_del_juego():
     """BUFFER_SIZE leido (como texto) de game/main.py; 25 si no se encuentra."""
     ruta = os.path.join(BASE_DIR, "game", "main.py")
@@ -54,6 +74,7 @@ def buffer_del_juego():
     return 25
 
 
+# Escribe los eventos con el escritor real y devuelve cuantos segundos tomo.
 def escribir(eventos, carpeta, buffer_size):
     """Escribe los eventos y devuelve segundos (incluye close())."""
     t0 = time.perf_counter()
@@ -64,10 +85,12 @@ def escribir(eventos, carpeta, buffer_size):
     return time.perf_counter() - t0
 
 
+# Suma el tamano en bytes de todos los archivos de bitacora.
 def tamano_en_disco(carpeta):
     return sum(os.path.getsize(p) for p in list_log_files(carpeta))
 
 
+# Recorre la bitacora evento por evento SIN guardarlos; devuelve cuantos hubo.
 def contar_lazy(carpeta):
     """Recorre iter_events sin guardar nada; devuelve cuantos eventos hubo."""
     n = 0
@@ -76,6 +99,7 @@ def contar_lazy(carpeta):
     return n
 
 
+# Mide varias veces cuanto tarda leer todo y devuelve la mediana.
 def tiempo_lectura(carpeta, reps):
     """Mediana (sorted) de ``reps`` recorridos completos; devuelve (seg, n)."""
     tiempos, n = [], 0
@@ -86,6 +110,7 @@ def tiempo_lectura(carpeta, reps):
     return mediana(tiempos), n
 
 
+# Ejecuta una funcion y devuelve el pico maximo de memoria usado.
 def pico_memoria(funcion):
     """Pico (bytes) de tracemalloc al ejecutar ``funcion``; reinicia antes y despues."""
     gc.collect()
@@ -98,6 +123,8 @@ def pico_memoria(funcion):
         tracemalloc.stop()
 
 
+# Todo el experimento para UN tamano: genera eventos, los escribe, mide
+# escritura, lectura y memoria (perezosa y con lista).
 def medir(n_eventos, seed, buffer_size, reps, tmp_base):
     eventos = build_events(n_eventos, seed)
     carpeta = tempfile.mkdtemp(prefix="expbc_", dir=tmp_base)
@@ -107,6 +134,7 @@ def medir(n_eventos, seed, buffer_size, reps, tmp_base):
         gc.collect()
         disco = tamano_en_disco(carpeta)
         t_lec, n_leidos = tiempo_lectura(carpeta, reps)
+        # Comprobacion: lo leido debe ser igual a lo escrito.
         if n_leidos != n_eventos:
             raise RuntimeError("se leyeron %d eventos, se esperaban %d"
                                % (n_leidos, n_eventos))
@@ -120,6 +148,7 @@ def medir(n_eventos, seed, buffer_size, reps, tmp_base):
         shutil.rmtree(carpeta, ignore_errors=True)
 
 
+# Convierte un resultado en una fila de texto de la tabla.
 def _fila(r):
     return [format(r["eventos"], ","), bytes_legible(r["disco"]),
             "%.3f s" % r["t_esc"], "%.3f s" % r["t_lec"],
@@ -127,6 +156,7 @@ def _fila(r):
             bytes_legible(r["mem_lista"])]
 
 
+# Arma la tabla resumen y los detalles B y C en texto.
 def tabla_texto(resultados, buffer_size, reps, seed):
     filas = [CABECERA] + [_fila(r) for r in resultados]
     anchos = [max(len(f[i]) for f in filas) for i in range(len(CABECERA))]
@@ -150,6 +180,7 @@ def tabla_texto(resultados, buffer_size, reps, seed):
     return "\n".join(out)
 
 
+# Arma la misma tabla en LaTeX (para pegar en el informe).
 def tabla_tex(resultados):
     def esc(s):
         return s.replace("%", "\\%").replace("_", "\\_").replace(",", "{,}")
@@ -163,6 +194,7 @@ def tabla_tex(resultados):
     return "\n".join(out) + "\n"
 
 
+# Dibuja las graficas de barras de los experimentos B y C.
 def dibujar(resultados, carpeta_out):
     from plotlib import bar_chart
     cats = [format(r["eventos"], ",") for r in resultados]
@@ -182,6 +214,7 @@ def dibujar(resultados, carpeta_out):
                          [bytes_legible(r["mem_lista"]) for r in resultados]])
 
 
+# Lee opciones, mide cada tamano, imprime y guarda tablas y graficas.
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--sizes", type=int, nargs="+", default=list(SIZES))
@@ -194,12 +227,14 @@ def main(argv=None):
     ap.add_argument("--no-png", action="store_true")
     args = ap.parse_args(argv)
 
+    # Buffer a usar: el pedido o el del juego.
     buffer_size = args.buffer if args.buffer else buffer_del_juego()
     origen = "--buffer" if args.buffer else "game/main.py"
     specs = especificaciones()
     print(formato_specs(specs))
     print("\nBuffer de escritura usado: %d (de %s)" % (buffer_size, origen))
     resultados = []
+    # Medimos cada tamano de bitacora.
     for n in args.sizes:
         print("Midiendo %s eventos..." % format(n, ","))
         resultados.append(medir(n, args.seed, buffer_size, args.reps, args.tmp))
@@ -217,5 +252,6 @@ def main(argv=None):
     return 0
 
 
+# Solo se ejecuta al abrir el archivo directamente.
 if __name__ == "__main__":
     sys.exit(main())

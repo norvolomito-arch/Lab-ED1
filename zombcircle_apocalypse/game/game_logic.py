@@ -1,3 +1,15 @@
+# ======================================================================
+# ARCHIVO: game/game_logic.py - las REGLAS del juego (sin dibujar nada)
+# ======================================================================
+# QUE ES: el 'motor' del juego. Aqui viven las reglas: como se mueve el jugador,
+# como disparan las balas, como aparecen y atacan los enemigos, cuando se sube
+# de nivel y cuando se muere.
+# IMPORTANTE: este archivo NO dibuja ni usa pygame. Solo calcula numeros. Cada
+# vez que pasa algo importante avisa con un 'evento' (SESSION_START, ENEMY_KILL,
+# DAMAGE_TAKEN, LEVEL_UP, PLAYER_DEATH, SESSION_END) que otro archivo guarda en
+# la bitacora. Asi la logica se puede probar sin abrir ninguna ventana.
+# ======================================================================
+
 """Logica pura de Zombcircle Apocalypse (Persona 1).
 
 Este modulo NO importa pygame: solo calcula el estado del juego y emite
@@ -9,16 +21,24 @@ Eventos que emite una partida (en este orden tipico):
     SESSION_START -> ENEMY_KILL / DAMAGE_TAKEN / LEVEL_UP ...
     -> PLAYER_DEATH (solo si muere) -> SESSION_END
 """
+# math: para distancias (hypot) entre jugador, balas y enemigos.
 import math
+# os: para comprobar si existe el archivo contador de sesiones.
 import os
+# random: para elegir al azar que enemigos aparecen y por donde.
 import random
+# time: solo se usa de reserva si el contador de sesiones esta danado.
 import time
 
+# Tamano de la arena (ventana) en pixeles: 800 de ancho por 600 de alto.
 ARENA_W = 800
 ARENA_H = 600
 
+# Las tres dificultades posibles.
 DIFFICULTIES = ("easy", "normal", "hard")
 
+# Cuanto cambia cada dificultad a los enemigos. Ej: 'hard' = 30% mas
+# enemigos, 30% mas vida, 40% mas dano y 10% mas velocidad que 'normal'.
 # Multiplicadores por dificultad (se aplican a los enemigos).
 DIFFICULTY_PARAMS = {
     "easy": {"enemy_count": 0.8, "enemy_hp": 0.8,
@@ -31,6 +51,10 @@ DIFFICULTY_PARAMS = {
 
 # Tipos de enemigo. "weight" = probabilidad relativa de aparecer;
 # "first_wave" = primera oleada en la que puede aparecer.
+# Datos base de cada tipo de enemigo:
+#  hp = vida, speed = velocidad, damage = dano que causa, points = puntos
+#  al matarlo, radius = tamano, first_wave = primera oleada en que aparece,
+#  weight = probabilidad relativa de salir (el jefe 'boss' no sale al azar).
 ENEMY_TYPES = {
     "slime": {"hp": 20, "speed": 60, "damage": 8, "points": 100,
               "radius": 14, "first_wave": 1, "weight": 5},
@@ -41,8 +65,14 @@ ENEMY_TYPES = {
     "boss": {"hp": 300, "speed": 55, "damage": 25, "points": 1500,
              "radius": 34, "first_wave": 4, "weight": 0},
 }
+# Enemigos normales (todos menos el jefe).
 REGULAR_TYPES = ("slime", "bat", "brute")
 
+# --- CONSTANTES DEL JUGADOR Y DEL COMBATE ---
+# Vida maxima, velocidad (pixeles/segundo), tamano, pausa entre disparos
+# (0.22 s), velocidad/dano/tamano de la bala, vida que se cura al subir
+# de nivel, pausa entre golpes de un mismo enemigo, descanso entre
+# oleadas y cada cuantas oleadas sale un jefe.
 PLAYER_MAX_HP = 100
 PLAYER_SPEED = 230.0
 PLAYER_RADIUS = 14
@@ -56,11 +86,14 @@ INTERMISSION = 1.5        # pausa entre oleadas
 BOSS_EVERY = 4            # cada 4 oleadas aparece un jefe
 
 
+# CLASE Enemy: un enemigo. '__slots__' solo ahorra memoria.
 class Enemy:
     """Enemigo con sus estadisticas ya ajustadas a la dificultad."""
     __slots__ = ("kind", "x", "y", "hp", "speed", "damage",
                  "radius", "points", "attack_cd")
 
+    # Crea un enemigo de tipo 'kind' en la posicion (x, y), multiplicando
+    # sus estadisticas base por los valores de la dificultad.
     def __init__(self, kind, x, y, params):
         base = ENEMY_TYPES[kind]
         self.kind = kind
@@ -74,10 +107,12 @@ class Enemy:
         self.attack_cd = 0.0
 
 
+# CLASE Bullet: una bala con su posicion (x, y) y velocidad (vx, vy).
 class Bullet:
     """Proyectil del jugador."""
     __slots__ = ("x", "y", "vx", "vy")
 
+    # Guarda posicion y velocidad.
     def __init__(self, x, y, vx, vy):
         self.x = x
         self.y = y
@@ -85,6 +120,9 @@ class Bullet:
         self.vy = vy
 
 
+# GENERADOR DE IDs: crea nombres unicos de partida (S0001, S0002...).
+# El ultimo numero usado se guarda en session_counter.txt para que al
+# reabrir el juego se siga contando donde se quedo.
 class SessionIdGenerator:
     """Genera session_id unicos con formato S0001, S0002, ...
 
@@ -97,10 +135,13 @@ class SessionIdGenerator:
                               repetir ids ya escritos en la bitacora.
     """
 
+    # Lee el ultimo numero usado.
     def __init__(self, counter_path):
         self.counter_path = counter_path
         self._last = self._read()
 
+    # Si no existe el archivo, empezamos en 0 (primer id: S0001). Si esta
+    # danado, usamos la hora actual como base para no repetir ids.
     def _read(self):
         if not os.path.exists(self.counter_path):
             return 0
@@ -110,6 +151,7 @@ class SessionIdGenerator:
         except (OSError, ValueError):
             return int(time.time())
 
+    # Suma 1, lo guarda en el archivo y devuelve el id con 4 digitos (S0027).
     def next_id(self):
         """Devuelve el siguiente id y lo persiste."""
         self._last += 1
@@ -121,6 +163,8 @@ class SessionIdGenerator:
         return "S%04d" % self._last
 
 
+# CLASE ArenaGame: UNA partida completa. 'emit' es la funcion a la que se
+# avisa de cada evento (en el juego real, la que escribe en la bitacora).
 class ArenaGame:
     """Una partida (una sesion) de Zombcircle Apocalypse.
 
@@ -128,6 +172,9 @@ class ArenaGame:
           real es ``TelemetryWriter.log``.
     """
 
+    # Guarda los datos de la partida y el estado inicial: jugador al centro,
+    # vida completa, puntaje 0, nivel (oleada) 1, sin enemigos ni balas.
+    # Si la dificultad no es valida se usa 'normal'.
     def __init__(self, player, difficulty, session_id, emit, rng=None):
         self.player_name = player
         self.difficulty = difficulty if difficulty in DIFFICULTY_PARAMS else "normal"
@@ -136,6 +183,7 @@ class ArenaGame:
         self._emit = emit
         self.rng = rng or random.Random()
 
+        # Posicion inicial del jugador (centro de la arena).
         self.px = ARENA_W / 2
         self.py = ARENA_H / 2
         self.hp = PLAYER_MAX_HP
@@ -147,6 +195,8 @@ class ArenaGame:
         self.finished = False
         self.result = None        # "death" | "quit"
 
+        # Temporizadores internos: pausa de disparo, cola de enemigos por aparecer,
+        # cuenta regresiva entre apariciones y descanso entre oleadas.
         self._fire_cd = 0.0
         self._spawn_queue = []
         self._spawn_timer = 0.0
@@ -154,15 +204,20 @@ class ArenaGame:
         self._wave_active = False
 
     # ---------------------------------------------------------- eventos
+    # Ayudante: avisa un evento agregando el id de la sesion.
     def _log(self, event_type, **params):
         self._emit(event_type, self.session_id, **params)
 
+    # Empieza la partida: registra SESSION_START y lanza la primera oleada.
     def start(self):
         """Registra SESSION_START y arranca la oleada 1."""
         self._log("SESSION_START", player=self.player_name,
                   difficulty=self.difficulty)
         self._start_wave()
 
+    # Termina la partida y registra SESSION_END (puntaje, nivel, duracion y
+    # motivo: 'death' si murio, 'quit' si abandono). Si ya habia terminado,
+    # no hace nada (evita registrarlo dos veces).
     def finish(self, result):
         """Cierra la sesion con SESSION_END (result: death | quit).
 
@@ -176,6 +231,9 @@ class ArenaGame:
                   duration=round(self.elapsed, 1), result=result)
 
     # ------------------------------------------------------ actualizacion
+    # Se llama en CADA fotograma. 'dt' = segundos pasados. Hace en orden:
+    # mover jugador, disparar, mover balas, manejar oleadas, mover/atacar
+    # enemigos, ver si las balas golpean y ver si se limpio la oleada.
     def update(self, dt, move=(0, 0), aim=None):
         """Avanza la partida dt segundos.
 
@@ -190,11 +248,14 @@ class ArenaGame:
         self._update_bullets(dt)
         self._update_waves(dt)
         self._update_enemies(dt)
+        # Si el jugador murio en este fotograma, no seguimos.
         if self.finished:          # murio durante _update_enemies
             return
         self._resolve_bullet_hits()
         self._check_wave_cleared()
 
+    # Mueve al jugador. Se divide entre 'length' para que en diagonal no
+    # vaya mas rapido; luego se le impide salir de la arena.
     def _move_player(self, dt, move):
         dx, dy = move
         length = math.hypot(dx, dy)
@@ -204,6 +265,8 @@ class ArenaGame:
         self.px = min(max(self.px, PLAYER_RADIUS), ARENA_W - PLAYER_RADIUS)
         self.py = min(max(self.py, PLAYER_RADIUS), ARENA_H - PLAYER_RADIUS)
 
+    # Disparo: solo si el raton apunta a algun lado y ya paso la pausa entre
+    # disparos. La bala sale hacia el punto apuntado con velocidad fija.
     def _handle_shooting(self, dt, aim):
         self._fire_cd = max(0.0, self._fire_cd - dt)
         if aim is None or self._fire_cd > 0:
@@ -218,6 +281,7 @@ class ArenaGame:
                                    ay / dist * BULLET_SPEED))
         self._fire_cd = FIRE_COOLDOWN
 
+    # Mueve cada bala segun su velocidad y descarta las que salieron de la arena.
     def _update_bullets(self, dt):
         alive = []
         for b in self.bullets:
@@ -228,6 +292,9 @@ class ArenaGame:
         self.bullets = alive
 
     # ------------------------------------------------------------ oleadas
+    # Prepara una oleada: cuantos enemigos (crece con el nivel y la dificultad),
+    # que tipos pueden salir (segun el nivel), se eligen al azar con sus
+    # pesos, y cada 4 oleadas se agrega un jefe al final de la cola.
     def _start_wave(self):
         """Prepara la cola de enemigos de la oleada actual."""
         count = max(1, int(round((3 + 2 * self.level)
@@ -242,9 +309,13 @@ class ArenaGame:
         self._spawn_timer = 0.5
         self._wave_active = True
 
+    # Segundos entre aparicion de enemigos: baja con el nivel (mas rapido),
+    # pero nunca menos de 0.25.
     def _spawn_interval(self):
         return max(0.25, 0.8 - 0.03 * self.level)
 
+    # Hace aparecer un enemigo justo fuera de un borde elegido al azar
+    # (arriba, abajo, izquierda o derecha).
     def _spawn_enemy(self, kind):
         side = self.rng.randint(0, 3)
         if side == 0:
@@ -257,6 +328,8 @@ class ArenaGame:
             x, y = ARENA_W + 20, self.rng.uniform(0, ARENA_H)
         self.enemies.append(Enemy(kind, x, y, self.params))
 
+    # Controla el ritmo: durante el descanso cuenta hacia atras y luego lanza
+    # la siguiente oleada; si no, va sacando enemigos de la cola uno a uno.
     def _update_waves(self, dt):
         if self._intermission > 0:
             self._intermission -= dt
@@ -269,6 +342,9 @@ class ArenaGame:
                 self._spawn_enemy(self._spawn_queue.pop(0))
                 self._spawn_timer = self._spawn_interval()
 
+    # Si ya salieron todos los enemigos y todos murieron: sube de nivel,
+    # da puntos extra, cura un poco al jugador, registra LEVEL_UP e inicia
+    # el descanso.
     def _check_wave_cleared(self):
         """Si la oleada termino, sube de nivel y registra LEVEL_UP."""
         if self._wave_active and not self._spawn_queue and not self.enemies:
@@ -281,6 +357,8 @@ class ArenaGame:
             self._intermission = INTERMISSION
 
     # ---------------------------------------------------------- combate
+    # Mueve cada enemigo hacia el jugador. Si lo toca y su pausa de ataque
+    # ya termino, le hace dano.
     def _update_enemies(self, dt):
         for e in self.enemies:
             dx = self.px - e.x
@@ -295,6 +373,8 @@ class ArenaGame:
                 if self.finished:
                     return
 
+    # Le quita vida al jugador y registra DAMAGE_TAKEN. Si llega a 0:
+    # registra PLAYER_DEATH y termina la partida con motivo 'death'.
     def _hit_player(self, enemy):
         self.hp = max(0, self.hp - enemy.damage)
         enemy.attack_cd = ATTACK_COOLDOWN
@@ -303,6 +383,9 @@ class ArenaGame:
             self._log("PLAYER_DEATH", cause=enemy.kind, level=self.level)
             self.finish("death")
 
+    # Revisa si cada bala toca a algun enemigo: le resta vida; si muere se
+    # llama _kill. La bala que golpea desaparece. Al final se eliminan los
+    # enemigos muertos.
     def _resolve_bullet_hits(self):
         alive_bullets = []
         for b in self.bullets:
@@ -321,6 +404,8 @@ class ArenaGame:
         self.bullets = alive_bullets
         self.enemies = [e for e in self.enemies if e.hp > 0]
 
+    # Un enemigo murio: se suman sus puntos y se registra ENEMY_KILL con su tipo
+    # y la oleada.
     def _kill(self, enemy):
         self.score += enemy.points
         self._log("ENEMY_KILL", type=enemy.kind, wave=self.level)

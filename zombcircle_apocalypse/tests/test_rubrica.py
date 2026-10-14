@@ -1,3 +1,20 @@
+# ======================================================================
+# ARCHIVO: tests/test_rubrica.py - pruebas de las PENALIZACIONES de la rubrica
+# ======================================================================
+# QUE PRUEBA: que no caigamos en las penalizaciones del laboratorio:
+#   - Sin librerias prohibidas (statistics, numpy, pandas, matplotlib...).
+#   - json solo para config.json.
+#   - Nunca usar read() ni readlines() sobre la bitacora (cargarla entera).
+#   - Memoria constante al leer aunque crezca la bitacora.
+#   - Valores de referencia 8.1, 8.3, 8.4 y 8.5 correctos.
+# QUE SON LOS TESTS: son programitas que prueban que el codigo funciona.
+# Cada funcion 'test_...' hace una comprobacion y, si el resultado no es el
+# esperado, falla y avisa. Sirven para detectar errores antes de entregar.
+# COMO CORRERLOS (desde la carpeta del proyecto):  python -m unittest discover -s tests
+# PALABRAS: 'assertEqual(a, b)' = comprueba que a y b sean iguales;
+# 'setUp' = preparacion antes de cada prueba; 'tearDown' = limpieza despues.
+# ======================================================================
+
 """Pruebas de cierre (Parte 13): penalizaciones de la rubrica.
 
 - sin librerias prohibidas (analisis AST del codigo entregado)
@@ -5,6 +22,7 @@
 - lector en streaming: la memoria no crece con el tamano de la bitacora
 - valores de validacion exactos (8.1, 8.3, 8.4, 8.5)
 """
+# ast: permite leer el codigo de los archivos como un arbol y revisar que importan.
 import ast
 import os
 import sys
@@ -12,6 +30,7 @@ import tempfile
 import tracemalloc
 import unittest
 
+# Carpeta raiz del proyecto.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -19,11 +38,13 @@ if ROOT not in sys.path:
 from telemetry import iter_events
 from game import statistics_engine as se
 
+# Lista de librerias prohibidas y carpetas de codigo a revisar.
 PROHIBIDOS = {"statistics", "numpy", "pandas", "scipy", "matplotlib",
               "plotly", "csv", "pickle"}
 CARPETAS = ("game", "telemetry", "tools")
 
 
+# Ayudante: lista todos los archivos .py del proyecto.
 def _archivos_py():
     rutas = [os.path.join(ROOT, "main.py")]
     for carpeta in CARPETAS:
@@ -34,7 +55,9 @@ def _archivos_py():
     return rutas
 
 
+# REVISION DEL CODIGO ENTREGADO.
 class TestSinLibreriasProhibidas(unittest.TestCase):
+    # Ningun archivo importa una libreria prohibida.
     def test_imports_prohibidos(self):
         for ruta in _archivos_py():
             with open(ruta, "r", encoding="utf-8") as f:
@@ -52,6 +75,7 @@ class TestSinLibreriasProhibidas(unittest.TestCase):
                 self.assertFalse(set(mods) & PROHIBIDOS,
                                  "%s importa %s" % (ruta, mods))
 
+    # json solo se usa en el archivo de ajustes.
     def test_json_solo_en_config(self):
         # json esta permitido solo para config.json
         for ruta in _archivos_py():
@@ -61,6 +85,7 @@ class TestSinLibreriasProhibidas(unittest.TestCase):
                         ruta.endswith(("settings_screen.py", "main.py")),
                         "json fuera de configuracion: %s" % ruta)
 
+    # Nadie llama a .read() ni .readlines() para leer la bitacora.
     def test_sin_read_ni_readlines(self):
         # busca llamadas .read() / .readlines() sin argumentos en el codigo
         for ruta in _archivos_py():
@@ -75,6 +100,7 @@ class TestSinLibreriasProhibidas(unittest.TestCase):
                         ruta, nodo.lineno, nodo.func.attr))
 
 
+# Ayudante: crea una bitacora minima con N sesiones.
 def _generar(ruta_log, sesiones):
     """Bitacora minima valida con N sesiones (4 eventos por sesion)."""
     with open(ruta_log, "w", encoding="utf-8") as f:
@@ -91,6 +117,7 @@ def _generar(ruta_log, sesiones):
                     "result=death\n" % (t + .3, sid, 100 + i % 50))
 
 
+# Ayudante: mide el pico de memoria al leer una bitacora.
 def _pico_lectura(log_dir):
     tracemalloc.start()
     n = 0
@@ -101,7 +128,10 @@ def _pico_lectura(log_dir):
     return n, pico
 
 
+# PRUEBA DE MEMORIA.
 class TestMemoriaConstante(unittest.TestCase):
+    # Una bitacora 50 veces mas grande (100 000 eventos contra 2 000) no debe gastar
+    # mucha mas memoria: el pico se mantiene bajo.
     def test_pico_no_crece_con_el_tamano(self):
         with tempfile.TemporaryDirectory() as d1, \
                 tempfile.TemporaryDirectory() as d2:
@@ -117,9 +147,11 @@ class TestMemoriaConstante(unittest.TestCase):
         self.assertLess(p2, 512 * 1024)
 
 
+# VALORES OFICIALES DEL LABORATORIO.
 class TestValoresDeReferencia(unittest.TestCase):
     DATOS = [1200, 1500, 1500, 1800, 2100, 2400, 2400, 3000, 3600, 9000]
 
+    # Medidas descriptivas.
     def test_8_1(self):
         r = se.basic_distribution(self.DATOS)
         self.assertEqual(r["n"], 10)
@@ -136,6 +168,7 @@ class TestValoresDeReferencia(unittest.TestCase):
         self.assertEqual(r["outliers"], [9000])
         self.assertEqual(r["z_outliers"], [])
 
+    # Tablas de frecuencia.
     def test_8_3_frecuencias(self):
         ses = {}
         reparto = (("slime", 412), ("arrow_trap", 298), ("boss", 190),
@@ -152,6 +185,7 @@ class TestValoresDeReferencia(unittest.TestCase):
         self.assertAlmostEqual(tabla[-1]["cumulative"], 1.0, 6)
         self.assertEqual(se.mode_from_frequency(tabla), "slime")
 
+    # Embudo de progresion.
     def test_8_4_embudo(self):
         # 500 sesiones: llegan a nivel 2/3/4/5 = 470/390/180/160
         llegan = (500, 470, 390, 180, 160)
@@ -169,6 +203,7 @@ class TestValoresDeReferencia(unittest.TestCase):
         self.assertAlmostEqual(filas[3]["abandonment"] * 100, 53.8, 1)
         self.assertAlmostEqual(filas[4]["abandonment"] * 100, 11.1, 1)
 
+    # Correlacion de Pearson.
     def test_8_5_pearson(self):
         r = se.pearson([2, 4, 6, 8, 10, 12], [800, 1400, 1900, 2600, 3000, 3700])
         self.assertAlmostEqual(r, 0.99834, 5)

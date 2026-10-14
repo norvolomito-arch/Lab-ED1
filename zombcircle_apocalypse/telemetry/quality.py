@@ -1,6 +1,18 @@
+# ======================================================================
+# ARCHIVO: telemetry/quality.py - el REPORTE DE CALIDAD de la bitacora
+# ======================================================================
+# QUE ES: un contador que va 'anotando' mientras se lee la bitacora:
+# cuantos archivos, cuantas lineas, cuantas validas, cuantas corruptas y cuantas
+# sesiones quedaron incompletas (empezaron pero nunca terminaron).
+# No guarda las lineas, solo cuenta, asi que gasta muy poca memoria.
+# Al final imprime el reporte con el formato exacto que pide el laboratorio.
+# ======================================================================
+
 """Streaming quality report for event log files."""
 
 
+# CLASE QualityReport: la libreta de conteos. (Su explicacion en ingles:
+# acumula conteos de calidad y sigue las sesiones sin terminar.)
 class QualityReport:
     """Accumulate log quality counts and track unfinished sessions.
 
@@ -13,6 +25,8 @@ class QualityReport:
     number of events processed.
     """
 
+    # Todo empieza en cero. _open_sessions es el conjunto de sesiones
+    # abiertas (iniciadas pero sin terminar).
     def __init__(self):
         self.files = 0
         self.lines_read = 0
@@ -21,19 +35,24 @@ class QualityReport:
         self._open_sessions = set()
         self._finished = False
 
+    # Cantidad de sesiones que tienen SESSION_START pero no SESSION_END.
     @property
     def incomplete_sessions(self):
         """Number of session IDs without a matching SESSION_END."""
         return len(self._open_sessions)
 
+    # Anota que se abrio un archivo mas.
     def add_file(self):
         """Record that a log file was opened."""
         self.files += 1
 
+    # Anota que se leyo una linea mas (buena o mala).
     def add_line(self):
         """Record that one line was read, whether valid or corrupt."""
         self.lines_read += 1
 
+    # Anota un evento valido. Si es SESSION_START, la sesion pasa a 'abierta';
+    # si es SESSION_END, se quita de las abiertas.
     def add_valid(self, event):
         """Record a valid event and update the open-session set."""
         self.valid += 1
@@ -44,16 +63,20 @@ class QualityReport:
         elif event_type == "SESSION_END":
             self._open_sessions.discard(session_id)
 
+    # Anota una linea corrupta mas.
     def add_corrupt(self):
         """Record one corrupt line."""
         self.corrupt += 1
 
+    # Marca que ya se termino de recorrer toda la bitacora.
     def finish(self):
         """Mark that the complete log traversal has finished."""
         self._finished = True
 
+    # Devuelve el texto del reporte con el formato del laboratorio.
     def format(self):
         """Return the quality report using the laboratory's exact layout."""
+        # Calcula porcentajes de validas y corruptas (si no se leyo nada, 0%).
         if self.lines_read:
             valid_percent = self.valid / self.lines_read * 100
             corrupt_percent = self.corrupt / self.lines_read * 100
@@ -61,6 +84,7 @@ class QualityReport:
             valid_percent = 0.0
             corrupt_percent = 0.0
 
+        # Arma el texto; el ',' separa los miles (1,234).
         return (
             "Archivos procesados: {files}\n"
             "Lineas leidas: {lines}\n"
@@ -77,6 +101,7 @@ class QualityReport:
             incomplete=format(self.incomplete_sessions, ","),
         )
 
+    # Muestra el reporte por pantalla.
     def print_report(self):
         """Print the formatted quality report."""
         print(self.format())
