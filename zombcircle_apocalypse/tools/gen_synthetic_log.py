@@ -8,6 +8,8 @@
 # Con la misma 'semilla' (--seed) siempre genera exactamente los mismos datos.
 # COMO SE USA:  python tools/gen_synthetic_log.py --events 100000 --out carpeta --seed 42
 # ======================================================================
+#python tools/gen_synthetic_log.py --events 100000 --out bitacora_100k --seed 42
+#python tools/check_log.py bitacora_100k
 
 """Generador de bitacoras sinteticas para experimentos y demostracion web.
 

@@ -6,6 +6,9 @@
 # el reporte de calidad cuenta bien las lineas malas.
 # COMO SE USA:  python tools/inject_corruption.py ORIGEN DESTINO
 # ======================================================================
+#python tools/check_log.py logs
+#python tools/inject_corruption.py logs logs_corruptos
+#python tools/check_log.py logs_corruptos
 
 """Copy event logs and add corrupt records in a new rotated file."""
 
