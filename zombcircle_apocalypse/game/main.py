@@ -30,16 +30,11 @@ import sys
 # pygame: la libreria que dibuja la ventana, lee teclas y maneja el sonido.
 import pygame
 
-# Averiguamos la carpeta raiz del proyecto (dos niveles arriba de este archivo)
-# y la agregamos a la lista de busqueda de Python, para poder importar
-# la carpeta 'telemetry' sin problemas.
 # La raiz del repo debe estar en sys.path para importar ``telemetry``.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-# Importaciones de NUESTRO codigo: escritor de bitacora, musica,
-# logica del juego, pantalla de ajustes y pantalla de estadisticas.
 from telemetry import TelemetryWriter                     # noqa: E402
 from game.audio import MusicPlayer                        # noqa: E402
 from game.game_logic import (ArenaGame, SessionIdGenerator,  # noqa: E402
@@ -59,12 +54,6 @@ MUSIC_DIR = os.path.join(BASE_DIR, "assets", "music")
 # Titulo que aparece en la barra de la ventana.
 GAME_TITLE = "Zombcircle Apocalypse"
 
-# --- AJUSTES GENERALES ---
-# BUFFER_SIZE: cuantos eventos se juntan en memoria antes de escribirlos al disco
-# (escribir de a muchos es mas rapido que de a uno). Valor provisional.
-# MAX_LOG_BYTES: tamano maximo de un archivo de bitacora (512 KB); al pasarse
-# se crea otro archivo (rotacion).
-# FPS: fotogramas por segundo (60 = el juego se redibuja 60 veces por segundo).
 BUFFER_SIZE = 25            # PROVISIONAL: se justifica con el Experimento A
 MAX_LOG_BYTES = 512 * 1024  # umbral de rotacion (512 KB)
 FPS = 60
@@ -100,10 +89,7 @@ class App:
         self.settings = None
         self.running = True
 
-    # ACCIONES: lo que pasa cuando el jugador elige algo.
     # ------------------------------------------------------- acciones
-    # Empieza una partida nueva: pide un identificador de sesion, crea el
-    # juego con el nombre y la dificultad de config.json, y cambia a 'playing'.
     def start_game(self):
         session_id = self.ids.next_id()
         self.game = ArenaGame(self.config["player"], self.config["difficulty"],
@@ -134,10 +120,7 @@ class App:
         if self.game is not None and not self.game.finished:
             self.game.finish("quit")
 
-    # EVENTOS: reaccionar a teclas y clics.
     # -------------------------------------------------------- eventos
-    # Recibe UN evento (tecla, clic, cerrar ventana) y decide que hacer
-    # segun la pantalla en la que estemos.
     def handle_event(self, event):
         if event.type == pygame.QUIT:
             self.running = False
@@ -180,9 +163,7 @@ class App:
                     self.activate_menu(i)
                     break
 
-    # ACTUALIZAR: cambiar el estado del juego en cada fotograma.
     # ----------------------------------------------------- actualizar
-    # 'dt' = segundos desde el fotograma anterior. Solo hace algo si estamos jugando.
     def update(self, dt):
         if self.state != "playing":
             return
@@ -199,9 +180,7 @@ class App:
         if self.game.finished:
             self.state = "gameover"
 
-    # DIBUJO: pintar cosas en pantalla.
     # ---------------------------------------------------------- dibujo
-    # Ayudante: escribe un texto centrado en la posicion 'center'.
     def _text(self, text, font, color, center):
         img = font.render(text, True, color)
         self.screen.blit(img, img.get_rect(center=center))
@@ -331,8 +310,6 @@ async def main():
     # BUCLE DEL JUEGO: se repite 60 veces por segundo hasta que app.running sea False.
     try:
         while app.running:
-            # dt = segundos transcurridos; se limita a 0.05 para que un tiron no
-            # haga que todo salte de golpe.
             dt = min(clock.tick(FPS) / 1000.0, 0.05)  # tope por si hay lag
             # Procesamos todos los eventos (teclas, clics) pendientes.
             for event in pygame.event.get():
@@ -352,7 +329,6 @@ async def main():
             app.update(dt)
             app.draw()
             pygame.display.flip()
-            # Ceder el control un instante (obligatorio para que el navegador no se congele).
             await asyncio.sleep(0)   # cede el control (requisito de pygbag)
     # CIERRE SEGURO: pase lo que pase (incluso un error), terminamos la sesion
     # activa, escribimos lo que quede en el buffer, paramos la musica y

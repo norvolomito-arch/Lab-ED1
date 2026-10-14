@@ -99,7 +99,26 @@ class TestWebBuild(unittest.TestCase):
         finally:
             shutil.rmtree(tmp)
 
-    # No debe existir un segundo archivo de audio (audio-pygbag.py) ni mencionarse en el README.
+    def test_prepare_web_renombra_bitacoras_para_pygbag(self):
+        # pygbag descarta los archivos ".log"; en el build deben ir como .txt
+        # y seguir siendo legibles por el lector.
+        _exigir_bitacora_real()
+        import sys
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        import prepare_web
+        tmp = tempfile.mkdtemp()
+        try:
+            destino, nombres = prepare_web.prepare(os.path.join(tmp, "stage"))
+            self.assertTrue(nombres)
+            logs = os.path.join(destino, "logs")
+            self.assertFalse([n for n in os.listdir(logs) if n.endswith(".log")])
+            report = QualityReport()
+            total = sum(1 for _ in iter_events(logs, report))
+            self.assertGreater(total, 0)
+            self.assertEqual(report.corrupt, 0)
+        finally:
+            shutil.rmtree(tmp)
+
     def test_un_solo_audio(self):
         self.assertFalse(os.path.exists(os.path.join(ROOT, "game", "audio-pygbag.py")))
         with open(os.path.join(ROOT, "README.md"), encoding="utf-8") as f:

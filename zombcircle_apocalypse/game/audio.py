@@ -27,12 +27,9 @@ import sys
 import pygame
 
 # True cuando el juego corre dentro del navegador (pygbag / emscripten).
-# True cuando corre en el navegador (pygbag).
 IS_WEB = sys.platform == "emscripten"
 
 # Nombres aceptados, en orden de preferencia.
-# Nombres de archivo que se buscan, en orden de preferencia.
-# En el navegador solo sirve .ogg.
 MUSIC_FILENAMES_LOCAL = ("theme.ogg", "theme.wav", "theme.mp3")
 MUSIC_FILENAMES_WEB = ("theme.ogg",)
 MUSIC_FILENAMES = MUSIC_FILENAMES_WEB if IS_WEB else MUSIC_FILENAMES_LOCAL

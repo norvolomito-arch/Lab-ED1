@@ -16,8 +16,6 @@ ir al final de este archivo: pygbag la necesita para arrancar el bucle.
 # fotograma (necesario para la version web). Aqui solo se usa para arrancar.
 import asyncio
 
-# Importamos pygame (la libreria de videojuegos) para que pygbag sepa
-# que el proyecto lo necesita.
 import pygame  # noqa: F401  (pygbag detecta pygame-ce por este import)
 
 # Traemos la funcion principal del juego desde la carpeta 'game'.

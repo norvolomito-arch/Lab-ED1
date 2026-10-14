@@ -97,7 +97,6 @@ def _parse_params(field):
         key, sep, value = piece.partition("=")
         # sin "=", clave/valor vacios, "=" suelto dentro del valor (el writer
         # lo escapa como %3D, asi que un "=" crudo indica linea danada)
-        # Es corrupto si falta el '=', la clave o el valor estan vacios, o sobra un '='.
         if not sep or not key.strip() or not value.strip() or "=" in value:
             raise ValueError(piece)
         # Des-escapamos la clave y vemos que no este repetida.
@@ -181,8 +180,6 @@ def iter_events(log_dir, report=None):
                         report.add_line()
                     # Solo la ultima linea de un archivo puede carecer de
                     # "\n": es una linea truncada (ver docstring del modulo).
-                    # Una linea sin salto final es la ultima y esta truncada: se cuenta
-                    # como corrupta aunque parezca completa.
                     event = parse_line(linea) if linea.endswith("\n") else None
                     # Si es corrupta: se cuenta y se sigue con la siguiente.
                     if event is None:

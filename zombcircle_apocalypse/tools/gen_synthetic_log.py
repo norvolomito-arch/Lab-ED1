@@ -59,19 +59,15 @@ if BASE_DIR not in sys.path:
 from telemetry import TelemetryWriter
 from telemetry.common import list_log_files
 
-# Fecha de partida de los eventos falsos (en milisegundos).
 EPOCH_MS = 1717000000000        # 2024-05-29, el ejemplo del enunciado
 # Nombres de jugadores, tipos de enemigo, dificultades y puntos por matar a cada uno.
 PLAYERS = ("ana", "luis", "marta", "pedro", "sofia", "juan", "camila", "diego")
 ENEMIES = ("slime", "bat", "brute", "boss")
 DIFFICULTIES = ("easy", "normal", "hard")
 KILL_POINTS = {"slime": 10, "bat": 25, "brute": 60, "boss": 300}
-# Maximos: eventos intermedios por partida y porcentaje de lineas corruptas.
 MAX_BODY = 300                  # tope de eventos intermedios por sesion
 MAX_CORRUPT_RATE = 0.5
 
-# Perfil de cada dificultad: probabilidad de morir, rango de dano, ritmo
-# de subida de nivel y multiplicador de puntaje (hard = mas dano, menos puntaje).
 # Perfil por dificultad: hard = mas dano y menos puntaje que easy.
 PROFILES = {
     "easy":   {"weight": 0.35, "p_death": 0.60, "dmg": (4, 12),
@@ -128,7 +124,6 @@ class _SyntheticWriter(TelemetryWriter):
 
 
 # ---------------------------------------------------------------- sesiones
-# Probabilidades de cada enemigo segun el nivel (el jefe sale en niveles altos).
 def _enemy_weights(level, damage):
     """Pesos (slime, bat, brute, boss); el jefe aparece en niveles altos."""
     if damage:
@@ -176,8 +171,6 @@ def _session_events(rng, session_id, t0, difficulty, player, body_len, death):
     rng.shuffle(kinds)
 
     # Duracion objetivo ~ proporcional a los eventos (correlacion con ruido).
-    # Duracion proporcional a la cantidad de eventos (asi hay correlacion con ruido)
-    # y momentos en que ocurre cada evento.
     duration_ms = int((15 + body_len * rng.uniform(2.0, 4.0)) * 1000)
     offsets = sorted(rng.randrange(500, duration_ms) for _ in kinds)
 
@@ -262,8 +255,6 @@ def _iter_sessions(rng, n_events=None, n_sessions=None, start_ms=EPOCH_MS):
 
 
 # --------------------------------------------------------------- corrupcion
-# Fabrica una linea corrupta (vacia, solo espacios, cortada, sin '=',
-# numero invalido, con campos de menos o de mas).
 def make_corrupt_line(rng, ts, session_id, event_type, params_text):
     """Linea corrupta (SIN salto final) que parse_line SIEMPRE rechaza."""
     kind = rng.choice(CORRUPT_KINDS)
@@ -292,8 +283,6 @@ def _params_text(params):
 
 
 # ------------------------------------------------------------------ generate
-# FUNCION PRINCIPAL: escribe la bitacora sintetica en una carpeta y devuelve
-# un resumen (eventos, sesiones, archivos, bytes...).
 def generate(out_dir, n_events=None, seed=42, max_bytes=512 * 1024,
              buffer_size=100, corrupt_rate=0.0, overwrite=False,
              n_sessions=None):
@@ -397,7 +386,6 @@ def build_events(n_events, seed=42):
 
 
 # ----------------------------------------------------------------------- CLI
-# Interfaz de terminal: lee las opciones, llama a generate y muestra el resumen.
 def main(argv=None):
     # Definicion de las opciones (--events, --sessions, --out, --seed...).
     parser = argparse.ArgumentParser(

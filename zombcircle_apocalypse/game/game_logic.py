@@ -37,8 +37,6 @@ ARENA_H = 600
 # Las tres dificultades posibles.
 DIFFICULTIES = ("easy", "normal", "hard")
 
-# Cuanto cambia cada dificultad a los enemigos. Ej: 'hard' = 30% mas
-# enemigos, 30% mas vida, 40% mas dano y 10% mas velocidad que 'normal'.
 # Multiplicadores por dificultad (se aplican a los enemigos).
 DIFFICULTY_PARAMS = {
     "easy": {"enemy_count": 0.8, "enemy_hp": 0.8,
@@ -51,10 +49,6 @@ DIFFICULTY_PARAMS = {
 
 # Tipos de enemigo. "weight" = probabilidad relativa de aparecer;
 # "first_wave" = primera oleada en la que puede aparecer.
-# Datos base de cada tipo de enemigo:
-#  hp = vida, speed = velocidad, damage = dano que causa, points = puntos
-#  al matarlo, radius = tamano, first_wave = primera oleada en que aparece,
-#  weight = probabilidad relativa de salir (el jefe 'boss' no sale al azar).
 ENEMY_TYPES = {
     "slime": {"hp": 20, "speed": 60, "damage": 8, "points": 100,
               "radius": 14, "first_wave": 1, "weight": 5},
@@ -204,7 +198,6 @@ class ArenaGame:
         self._wave_active = False
 
     # ---------------------------------------------------------- eventos
-    # Ayudante: avisa un evento agregando el id de la sesion.
     def _log(self, event_type, **params):
         self._emit(event_type, self.session_id, **params)
 
@@ -231,9 +224,6 @@ class ArenaGame:
                   duration=round(self.elapsed, 1), result=result)
 
     # ------------------------------------------------------ actualizacion
-    # Se llama en CADA fotograma. 'dt' = segundos pasados. Hace en orden:
-    # mover jugador, disparar, mover balas, manejar oleadas, mover/atacar
-    # enemigos, ver si las balas golpean y ver si se limpio la oleada.
     def update(self, dt, move=(0, 0), aim=None):
         """Avanza la partida dt segundos.
 
@@ -248,7 +238,6 @@ class ArenaGame:
         self._update_bullets(dt)
         self._update_waves(dt)
         self._update_enemies(dt)
-        # Si el jugador murio en este fotograma, no seguimos.
         if self.finished:          # murio durante _update_enemies
             return
         self._resolve_bullet_hits()
@@ -273,7 +262,7 @@ class ArenaGame:
             return
         ax = aim[0] - self.px
         ay = aim[1] - self.py
-        dist = math.hypot(ax, ay)
+        dist = math.hypot(ax, ay) #calcula la distancia entre el jugador y el punto de mira
         if dist < 1:
             return
         self.bullets.append(Bullet(self.px, self.py,
@@ -287,14 +276,11 @@ class ArenaGame:
         for b in self.bullets:
             b.x += b.vx * dt
             b.y += b.vy * dt
-            if -10 <= b.x <= ARENA_W + 10 and -10 <= b.y <= ARENA_H + 10:
+            if -10 <= b.x <= ARENA_W + 10 and -10 <= b.y <= ARENA_H + 10: #comprueba si la bala sigue dentro de un margen de la arena y cuando se salga la elimine
                 alive.append(b)
         self.bullets = alive
 
     # ------------------------------------------------------------ oleadas
-    # Prepara una oleada: cuantos enemigos (crece con el nivel y la dificultad),
-    # que tipos pueden salir (segun el nivel), se eligen al azar con sus
-    # pesos, y cada 4 oleadas se agrega un jefe al final de la cola.
     def _start_wave(self):
         """Prepara la cola de enemigos de la oleada actual."""
         count = max(1, int(round((3 + 2 * self.level)
@@ -357,8 +343,6 @@ class ArenaGame:
             self._intermission = INTERMISSION
 
     # ---------------------------------------------------------- combate
-    # Mueve cada enemigo hacia el jugador. Si lo toca y su pausa de ataque
-    # ya termino, le hace dano.
     def _update_enemies(self, dt):
         for e in self.enemies:
             dx = self.px - e.x

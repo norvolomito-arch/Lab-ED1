@@ -70,12 +70,8 @@ class TelemetryWriter:
         self.log_dir = log_dir
         self.buffer_size = buffer_size
         self.max_bytes = max_bytes
-        # Contador de lineas perdidas por errores de disco.
         self.dropped_lines = 0     # lineas perdidas por errores de disco
 
-        # Variables internas (el '_' indica 'uso interno'): lista de lineas
-        # pendientes, archivo abierto, su ruta, su numero, su tamano y el
-        # ultimo timestamp usado.
         self._buffer = []          # lineas pendientes (maximo buffer_size)
         self._file = None
         self._path = None
@@ -89,7 +85,6 @@ class TelemetryWriter:
         self._open_latest()
 
     # ------------------------------------------------------------ API
-    # Propiedad: la ruta del archivo en el que se esta escribiendo.
     @property
     def current_path(self):
         """Ruta del archivo activo."""
@@ -110,7 +105,6 @@ class TelemetryWriter:
             raise ValueError("TelemetryWriter ya fue cerrado")
         # ROTACION: se revisa antes de escribir; el archivo que supero el
         # umbral se cierra y la linea nueva va al siguiente archivo.
-        # Si el archivo ya llego al limite, se pasa al siguiente (rotacion).
         if self._size >= self.max_bytes:
             self._rotate()
         # Se arma la linea de texto y se guarda en el buffer, sumando su tamano.
@@ -161,8 +155,6 @@ class TelemetryWriter:
         return False
 
     # -------------------------------------------------------- formato
-    # Hora del evento con 3 decimales. Si dos eventos caen en el mismo
-    # instante, se suma 0.001 para que cada hora sea mayor que la anterior.
     def _next_timestamp(self):
         """Timestamp con 3 decimales, estrictamente creciente."""
         ts = round(time.time(), 3)
@@ -188,7 +180,6 @@ class TelemetryWriter:
                                     escape(event_type), pairs)
 
     # ------------------------------------------------------- ROTACION
-    # Al iniciar, continua en el ultimo archivo existente (o crea events_001).
     def _open_latest(self):
         """Continua en el ultimo archivo de log_dir (o crea events_001)."""
         files = list_log_files(self.log_dir)
@@ -209,12 +200,9 @@ class TelemetryWriter:
         # Si el programa anterior se cerro de golpe, la ultima linea pudo
         # quedar sin "\n". Sin este salto, la primera linea nueva se pegaria
         # a la truncada y se perderian dos eventos en vez de uno.
-        # Si el programa anterior se cerro de golpe, la ultima linea pudo quedar
-        # sin salto de linea. Detectamos eso para no pegar la linea nueva a la rota.
         glue = size > 0 and self._ends_without_newline(path, size)
         # newline="\n": en Windows no se traduce a "\r\n", asi el conteo de
         # bytes coincide con el tamano real del archivo.
-        # Abrir el archivo. newline='\n' evita que Windows cambie el salto de linea.
         self._file = open(path, "a", encoding="utf-8", newline="\n")
         self._path = path
         self._size = size

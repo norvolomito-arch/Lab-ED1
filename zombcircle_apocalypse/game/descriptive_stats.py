@@ -40,8 +40,6 @@ import math
 # ======================================================================
 # 8.1  MEDIDAS DESCRIPTIVAS EN UNA SOLA PASADA
 # ======================================================================
-# CLASE RunningStats: una 'libretita' donde se anotan numeros uno a uno
-# sin guardarlos. Solo recuerda n, suma, suma de cuadrados, minimo y maximo.
 class RunningStats:
     """Acumula n, suma, suma de cuadrados, minimo y maximo.
 
@@ -95,7 +93,6 @@ class RunningStats:
             return None
         # Aplicamos la formula. Se divide entre n-1 (y no n) porque son datos de una muestra.
         valor = (self.total_sq - self.n * self.media ** 2) / (self.n - 1)
-        # Por errores de redondeo podria salir -0.0000001; lo forzamos a 0.
         return max(valor, 0.0)  # evita -1e-12 por error de redondeo
 
     # DESVIACION ESTANDAR = raiz de la varianza (esta en las mismas unidades que los datos).
@@ -132,8 +129,6 @@ class RunningStats:
 # ======================================================================
 # 8.2  MEDIANA, CUARTILES, P90 Y ATIPICOS  (requieren lista ordenada)
 # ======================================================================
-# MEDIANA: el valor del medio de una lista ya ordenada.
-# Si hay cantidad impar, es el del centro; si es par, el promedio de los dos centrales.
 def mediana(ordenados):
     """Mediana de una lista YA ordenada."""
     n = len(ordenados)
@@ -164,7 +159,6 @@ def cuartiles(ordenados):
     mitad = n // 2
     # Primera mitad de la lista.
     mitad_baja = ordenados[:mitad]
-    # Segunda mitad (si n es impar, se salta el elemento del medio).
     mitad_alta = ordenados[mitad + (n % 2):]  # si n es impar, salta la mediana
     return mediana(mitad_baja), mediana(mitad_alta)
 
@@ -236,3 +230,20 @@ def atipicos_z(valores, umbral=3.0):
         if abs(z) > umbral:
             resultado.append(x)
     return resultado
+
+
+# ATAJO: ordena una copia de los datos y devuelve de una vez la mediana, Q1, Q3,
+# IQR, P90 y los atipicos (por IQR y por z-score).
+def resumen_ordenado(valores):
+    """Atajo: ordena una copia y devuelve mediana, Q1, Q3, IQR, P90 y atipicos."""
+    ordenados = sorted(valores)
+    q1, q3 = cuartiles(ordenados)
+    return {
+        "mediana": mediana(ordenados),
+        "q1": q1,
+        "q3": q3,
+        "iqr": None if q1 is None else q3 - q1,
+        "p90": percentil_rango_mas_cercano(ordenados, 90),
+        "atipicos_iqr": atipicos_iqr(ordenados),
+        "atipicos_z": atipicos_z(ordenados),
+    }

@@ -1,0 +1,10 @@
+- `iter_events(log_dir, report=None)` yields valid events lazily from `events_NNN.log` files in numeric order.
+- `parse_line(line)` returns an event dictionary or `None` when the line is invalid.
+- Event dictionaries have `timestamp: float`, `session_id: str`, `event_type: str`, and `params: dict`.
+- Each log line has four fields: `timestamp|session_id|event_type|key=value;key=value`.
+- `NUMERIC_KEYS` lists parameter names whose values the reader converts to `int` or `float`.
+- `TelemetryWriter(log_dir, buffer_size=25, max_bytes=524288)` exposes `log()`, `flush()`, and `close()`.
+- The writer appends, buffers up to `buffer_size` lines, rotates files by size, and resumes at the latest log.
+- A `QualityReport` passed to `iter_events` receives `add_file`, `add_line`, `add_valid`, `add_corrupt`, and `finish` calls.
+- `QualityReport` exposes file, line, valid, corrupt, and incomplete-session counts plus `format()` and `print_report()`.
+- Group events by `session_id` and include a session in completed-session analysis only after its `SESSION_END` arrives.

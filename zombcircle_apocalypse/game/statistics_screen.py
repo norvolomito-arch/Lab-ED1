@@ -16,17 +16,24 @@ Pantalla de estadisticas de Persona 3.
 """
 # asyncio: para ceder el control al navegador en cada fotograma (pygbag).
 import asyncio
-
+# os: importado pero sin uso en este archivo (se puede quitar).
+import os
 # pygame: dibujar lineas, rectangulos, circulos y texto.
 import pygame
 
-# Traemos el analisis de datos y dos funciones de ayuda.
-from game.statistics_engine import analyze, correlation_strength, mode_from_frequency
-# Reporte de calidad y lector de la bitacora.
 from telemetry import QualityReport, iter_events
+# Analisis de datos (Persona 3). El 'try' prueba la ruta normal y, si falla,
+# la ruta alternativa (cuando game/ esta directamente en sys.path).
+try:
+    from game.statistics_engine import analyze, correlation_strength
+except ImportError:  # cuando game/ esta directamente en sys.path
+    from statistics_engine import analyze, correlation_strength
 
-# COLORES (R, G, B): fondo, texto, texto apagado, resaltado, rejilla,
-# barras y color de 'malo' (rojo, para atipicos y errores).
+
+# Tamano de la ventana y COLORES (R, G, B): fondo, texto, texto apagado,
+# resaltado, rejilla, barras y 'malo' (rojo, para atipicos y errores).
+WIDTH = 800
+HEIGHT = 600
 BG = (20, 22, 30)
 TEXT = (235, 235, 235)
 MUTED = (160, 165, 175)
@@ -36,7 +43,14 @@ BAR = (90, 170, 255)
 BAD = (230, 80, 80)
 
 
-# Ayudante: escribe un texto en la posicion (x, y).
+# Ayudante: los decimales se muestran con 2 cifras y lo demas como texto.
+def _fmt(value):
+    if isinstance(value, float):
+        return "%.2f" % value
+    return str(value)
+
+
+# Ayudante: escribe un texto en la posicion (x, y) con el color indicado.
 def _draw_text(screen, font, text, x, y, color=TEXT):
     screen.blit(font.render(str(text), True, color), (x, y))
 
@@ -57,29 +71,8 @@ def _draw_axes(screen, rect):
     pygame.draw.line(screen, GRID, (x, y), (x, y + h), 1)
 
 
-# Dice entre que pixeles se dibuja en horizontal. El histograma y la caja
-# usan EL MISMO rango para que queden alineados.
-def _h_range(rect):
-    """Rango horizontal en pixeles. Histograma y caja usan EL MISMO rango (9)."""
-    x, _, w, _ = rect
-    return x + 40, x + w - 15
-
-
-# Dibuja 5 marcas con numeros bajo el eje horizontal, del minimo al maximo.
-def _draw_x_ticks(screen, font, rect, low, high, label):
-    """Marcas del eje horizontal (5 valores entre el minimo y el maximo)."""
-    x, y, w, h = rect
-    px0, px1 = _h_range(rect)
-    for i in range(5):
-        tx = int(px0 + (px1 - px0) * i / 4)
-        pygame.draw.line(screen, GRID, (tx, y + h), (tx, y + h + 4), 1)
-        _draw_text(screen, font, "%.0f" % (low + (high - low) * i / 4),
-                   tx - 14, y + h + 6, MUTED)
-    _draw_text(screen, font, label, px1 - 40, y + h + 22, MUTED)
-
-
-# Dibuja el HISTOGRAMA: una barra por intervalo, tan alta como la
-# cantidad de partidas que caen ahi, con el numero encima.
+# Dibuja el HISTOGRAMA: una barra por intervalo, con su cantidad encima
+# y los valores minimo y maximo debajo del eje.
 def _draw_histogram(screen, font, bins, rect):
     x, y, w, h = rect
     if not bins:
@@ -87,21 +80,27 @@ def _draw_histogram(screen, font, bins, rect):
         return
 
     _draw_axes(screen, rect)
-    px0, px1 = _h_range(rect)
-    # La barra mas alta define la escala vertical.
-    top = max(1, max(b["count"] for b in bins))
-    bar_width = (px1 - px0) / len(bins)
+    # La barra mas alta define la escala vertical (minimo 1 para no dividir entre 0).
+    maximum = max(b["count"] for b in bins)
+    maximum = max(1, maximum)
+    bar_width = w / len(bins)
 
+    # Una barra por intervalo: su altura es proporcional a la cantidad.
     for i, item in enumerate(bins):
-        bar_h = item["count"] / top * (h - 30)
-        bx = px0 + i * bar_width
+        bar_h = item["count"] / maximum * (h - 30)
+        bx = x + i * bar_width + 2
         by = y + h - bar_h
         pygame.draw.rect(screen, BAR,
-                         (int(bx) + 1, int(by), max(1, int(bar_width) - 2), int(bar_h)))
-        _draw_text(screen, font, str(item["count"]), int(bx + 4), int(by - 18), TEXT)
+                         (int(bx), int(by), int(bar_width - 4), int(bar_h)))
+        _draw_text(screen, font, str(item["count"]),
+                   int(bx + 4), int(by - 20), TEXT)
 
-    _draw_text(screen, font, "Frecuencia", x, y - 2, MUTED)
-    _draw_x_ticks(screen, font, rect, bins[0]["low"], bins[-1]["high"], "Puntaje")
+    # Etiquetas debajo del eje: valor minimo (izquierda) y maximo (derecha).
+    minimum = bins[0]["low"]
+    maximum_value = bins[-1]["high"]
+    _draw_text(screen, font, "%.0f" % minimum, x, y + h + 5, MUTED)
+    label = "%.0f" % maximum_value
+    _draw_text(screen, font, label, x + w - 55, y + h + 5, MUTED)
 
 
 # Dibuja el DIAGRAMA DE CAJA Y BIGOTES: la caja va de Q1 a Q3, la raya
@@ -113,32 +112,41 @@ def _draw_boxplot(screen, font, summary, rect):
         _draw_text(screen, font, "No hay datos.", x, y + 20, MUTED)
         return
 
-    px0, px1 = _h_range(rect)
-    low, high = summary["min"], summary["max"]   # mismo rango que el histograma
+    low = min(summary["min"], summary["lower"])
+    high = max(summary["max"], summary["upper"])
+    if low == high:
+        high = low + 1
+
     center_y = y + h // 2
+    q1x = _scale(summary["q1"], low, high, x + 25, x + w - 25)
+    q3x = _scale(summary["q3"], low, high, x + 25, x + w - 25)
+    medx = _scale(summary["median"], low, high, x + 25, x + w - 25)
+    lowerx = _scale(max(summary["min"], summary["lower"]),
+                    low, high, x + 25, x + w - 25)
+    upperx = _scale(min(summary["max"], summary["upper"]),
+                    low, high, x + 25, x + w - 25)
 
-    # Convierte un valor a posicion horizontal con la misma escala del histograma.
-    def pos(value):
-        return int(_scale(value, low, high, px0, px1))
+    pygame.draw.line(screen, TEXT, (int(lowerx), center_y),
+                     (int(upperx), center_y), 2)
+    pygame.draw.line(screen, TEXT, (int(lowerx), center_y - 12),
+                     (int(lowerx), center_y + 12), 2)
+    pygame.draw.line(screen, TEXT, (int(upperx), center_y - 12),
+                     (int(upperx), center_y + 12), 2)
 
-    # Posiciones en pantalla de los limites, Q1, Q3 y mediana.
-    lowerx = pos(max(low, summary["lower"]))
-    upperx = pos(min(high, summary["upper"]))
-    q1x, q3x, medx = pos(summary["q1"]), pos(summary["q3"]), pos(summary["median"])
-
-    pygame.draw.line(screen, TEXT, (lowerx, center_y), (upperx, center_y), 2)
-    pygame.draw.line(screen, TEXT, (lowerx, center_y - 12), (lowerx, center_y + 12), 2)
-    pygame.draw.line(screen, TEXT, (upperx, center_y - 12), (upperx, center_y + 12), 2)
-    pygame.draw.rect(screen, BAR, (q1x, center_y - 20, max(2, q3x - q1x), 40), 2)
-    pygame.draw.line(screen, ACCENT, (medx, center_y - 20), (medx, center_y + 20), 3)
+    pygame.draw.rect(screen, BAR,
+                     (int(q1x), center_y - 20,
+                      max(2, int(q3x - q1x)), 40), 2)
+    pygame.draw.line(screen, ACCENT, (int(medx), center_y - 20),
+                     (int(medx), center_y + 20), 3)
 
     # Cada atipico se pinta como un punto rojo.
     for value in summary["outliers"]:
-        pygame.draw.circle(screen, BAD, (pos(value), center_y), 5)
+        ox = _scale(value, low, high, x + 25, x + w - 25)
+        pygame.draw.circle(screen, BAD, (int(ox), center_y), 5)
 
-    _draw_text(screen, font, "Q1", q1x - 8, center_y + 25, MUTED)
-    _draw_text(screen, font, "Med", medx - 12, center_y - 42, ACCENT)
-    _draw_text(screen, font, "Q3", q3x - 8, center_y + 25, MUTED)
+    _draw_text(screen, font, "Q1", int(q1x - 8), center_y + 25, MUTED)
+    _draw_text(screen, font, "Med", int(medx - 12), center_y - 42, ACCENT)
+    _draw_text(screen, font, "Q3", int(q3x - 8), center_y + 25, MUTED)
     _draw_text(screen, font, "IQR: %.2f" % summary["iqr"], x, y + h - 5, MUTED)
 
 
@@ -346,8 +354,8 @@ async def run_statistics(screen, log_dir):
                           (45, 385, 700, 100))
 
             freq = data["death_frequency"]
-            _draw_text(screen, small,
-                       "Moda causa de muerte: " + mode_from_frequency(freq),
+            mode = freq[0]["value"] if freq else "N/A"
+            _draw_text(screen, small, "Moda causa de muerte: " + mode,
                        45, 515, TEXT)
 
         # PESTANA 3 - RELACION: grafico de dispersion de la pareja elegida

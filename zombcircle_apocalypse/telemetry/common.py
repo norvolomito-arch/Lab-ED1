@@ -38,9 +38,11 @@ import os
 # Todos los archivos de bitacora empiezan por 'events_' y terminan en '.log'.
 LOG_PREFIX = "events_"
 LOG_SUFFIX = ".log"
+# pygbag descarta los archivos ".log" al empaquetar (SKIP_EXT en su
+# filtering.py), asi que en el build web las bitacoras viajan como
+# ``events_NNN.txt`` (ver tools/prepare_web.py). El lector acepta ambas.
+LOG_SUFFIXES = (LOG_SUFFIX, ".txt")
 
-# Tabla de reemplazos: caracter peligroso -> su codigo.
-# El '%' va primero para que no se vuelvan a escapar los codigos nuevos.
 # Orden importa: "%" va primero al escapar para no re-escapar los codigos
 # que se acaban de generar; al des-escapar se recorre al reves.
 _ESCAPES = (("%", "%25"), ("|", "%7C"), (";", "%3B"), ("=", "%3D"),
@@ -78,10 +80,10 @@ def log_index(name):
     """Numero N de un archivo ``events_N.log``; None si no sigue el patron."""
     # Nos quedamos solo con el nombre, sin la carpeta.
     name = os.path.basename(name)
-    if not (name.startswith(LOG_PREFIX) and name.endswith(LOG_SUFFIX)):
+    suffix = next((s for s in LOG_SUFFIXES if name.endswith(s)), None)
+    if suffix is None or not name.startswith(LOG_PREFIX):
         return None
-    # Extraemos la parte numerica y comprobamos que sean solo digitos.
-    digits = name[len(LOG_PREFIX):-len(LOG_SUFFIX)]
+    digits = name[len(LOG_PREFIX):-len(suffix)]
     if digits.isascii() and digits.isdigit():
         return int(digits)
     return None

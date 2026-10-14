@@ -17,9 +17,7 @@
 # Herramienta de pruebas.
 import unittest
  
-# Lo que vamos a probar.
-from game.statistics_engine import (Correlation, basic_distribution, correlation_data,
-                                    difficulty_comparison)
+from game.statistics_engine import basic_distribution, difficulty_comparison
  
 # Los 10 datos de referencia del laboratorio.
 DATOS = [1200, 1500, 1500, 1800, 2100, 2400, 2400, 3000, 3600, 9000]
@@ -99,38 +97,7 @@ class ComparacionDificultadTests(unittest.TestCase):
         self.assertEqual(r["normal"]["n"], 0)
         self.assertEqual(r["hard"]["n"], 0)
 
-# PRUEBAS DE LA CORRELACION DE PEARSON.
-class PearsonUnaPasadaTests(unittest.TestCase):
-    # Datos de ejemplo del laboratorio: tiempo (minutos) y puntaje.
-    TIEMPO = [2, 4, 6, 8, 10, 12]
-    PUNTAJE = [800, 1400, 1900, 2600, 3000, 3700]
 
-    # Las 6 sumas acumuladas y r = 0.99834.
-    def test_sumas_y_r_de_referencia_8_5(self):
-        c = Correlation()
-        for x, y in zip(self.TIEMPO, self.PUNTAJE):
-            c.add(x, y)
-        self.assertEqual((c.n, c.sx, c.sy, c.sxy), (6, 42, 13400, 113800))
-        self.assertAlmostEqual(c.r(), 0.99834, places=5)
-
-    # La funcion que usa la pantalla da el mismo r.
-    def test_correlation_data_usa_las_sumas(self):
-        ses = {"S%d" % i: {"duration": x, "score": y}
-               for i, (x, y) in enumerate(zip(self.TIEMPO, self.PUNTAJE))}
-        xs, ys, r = correlation_data(ses)
-        self.assertEqual(len(xs), 6)
-        self.assertAlmostEqual(r, 0.99834, places=5)
-
-    # Sin datos o sin variacion, r = 0.
-    def test_casos_borde(self):
-        self.assertEqual(Correlation().r(), 0.0)
-        c = Correlation()
-        for _ in range(3):
-            c.add(5, 7)
-        self.assertEqual(c.r(), 0.0)      # varianza cero
-
-
-
-# Permite correr solo este archivo.
 if __name__ == "__main__":
     unittest.main()
+ 

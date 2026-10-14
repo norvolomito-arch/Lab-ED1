@@ -113,11 +113,9 @@ class _Lienzo:
             x -= img.get_width()
         self.surf.blit(img, (x, y))
 
-    # Convierte una posicion relativa 0-1 a pixel horizontal.
     def px(self, t):             # t en [0,1] -> pixel x
         return int(self.x0 + t * (self.x1 - self.x0))
 
-    # Convierte una posicion relativa 0-1 a pixel vertical (0 abajo, 1 arriba).
     def py(self, t):             # t en [0,1] -> pixel y
         return int(self.y0 - t * (self.y0 - self.y1))
 

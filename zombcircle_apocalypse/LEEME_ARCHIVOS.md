@@ -1,6 +1,6 @@
 # Guia rapida de archivos (version comentada)
 
-Todos los `.py` empiezan con un recuadro `# ARCHIVO: ...` que explica para que sirve, y cada bloque de codigo tiene comentarios `#` en español sencillo. **Los comentarios no cambian el funcionamiento** (el codigo es identico al de la version limpia; 86/86 pruebas pasan).
+Todos los `.py` empiezan con un recuadro `# ARCHIVO: ...` que explica para que sirve, y cada bloque de codigo tiene comentarios `#` en español sencillo. **Los comentarios no cambian el funcionamiento** (se verifico que el codigo no cambia al quitar los comentarios; 84 pruebas pasan, 2 se saltan).
 
 | Archivo | Para que sirve |
 |---|---|
@@ -15,8 +15,8 @@ Todos los `.py` empiezan con un recuadro `# ARCHIVO: ...` que explica para que s
 | `telemetry/writer.py` | Escribe la bitacora (buffer, flush, rotacion) |
 | `telemetry/reader.py` | Lee la bitacora linea a linea y descarta lineas corruptas |
 | `telemetry/quality.py` | Reporte de calidad (validas, corruptas, sesiones incompletas) |
-| `telemetry/common.py` | Escape de texto y nombres `events_NNN.log` |
-| `tools/` | Utilidades de consola: reporte, generador de datos falsos, experimentos A/B/C |
-| `tests/` | 86 pruebas automaticas: `python -m unittest discover -s tests` |
+| `telemetry/common.py` | Escape de texto y nombres `events_NNN.log` / `.txt` |
+| `tools/` | Utilidades de consola: verificar bitacora, generador de datos falsos, experimentos A/B/C y `prepare_web.py` (prepara el build para pygbag) |
+| `tests/` | 84 pruebas automaticas: `python -m unittest discover -s tests` |
 
 Ejecutar el juego (desde esta carpeta): `python main.py`

@@ -38,8 +38,7 @@ import time
 
 # Permite importar 'common' que esta en esta misma carpeta.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-# Utilidades de los experimentos (datos de la maquina y mediana).
-from common import (RESULTS_DIR, especificaciones, formato_specs,
+from common import (BASE_DIR, RESULTS_DIR, especificaciones, formato_specs,
                     mediana)
 
 # El escritor real del juego (es lo que se mide) y el generador de eventos falsos.

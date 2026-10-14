@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+build/
+*.apk
+*.tar.gz
+logs_corruptos/
+web_stage/

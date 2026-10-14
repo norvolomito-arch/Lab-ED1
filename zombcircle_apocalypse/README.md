@@ -18,10 +18,16 @@ navegador moderno. Ejecuta todo desde la carpeta que contiene `main.py`.
 
 ```bash
 python -m pip install --upgrade pygbag
-rm -rf build                      # Windows: rmdir /s /q build
-python -m pygbag --build .        # genera build/web
-python -m http.server 8000 --directory build/web
+python tools/prepare_web.py       # copia a web_stage/ con logs/*.log -> *.txt
+python -m pygbag --build web_stage   # genera web_stage/build/web
+python -m http.server 8000 --directory web_stage/build/web
 ```
+
+> **Importante:** pygbag ignora los archivos `.log` al empaquetar, por eso
+> `tools/prepare_web.py` renombra `events_NNN.log` a `events_NNN.txt` en la
+> copia `web_stage/` (el lector acepta ambas extensiones). Si ejecutas
+> `pygbag --build .` directamente, la bitácora NO entra al build y Statistics
+> sale vacía.
 
 1. Abre **http://localhost:8000** (no `file://`; en Codespaces abre el puerto
    8000 en la pestaña **Ports**).
@@ -31,7 +37,7 @@ python -m http.server 8000 --directory build/web
    caché (Ctrl+Shift+R) o usa una ventana de incógnito; comprueba que el
    puerto 8000 está libre (`python -m http.server 8001 ...` si no lo está).
 4. Para repetir el build desde cero: detén el servidor (Ctrl+C), borra
-   `build/` (`rm -rf build`) y vuelve a ejecutar `python -m pygbag --build .`.
+   `web_stage/` y repite `python tools/prepare_web.py` y `python -m pygbag --build web_stage`.
 
 En el navegador el sistema de archivos es virtual: `config.json` y las
 partidas nuevas NO persisten entre recargas (Settings lo avisa en pantalla).
@@ -44,7 +50,7 @@ en navegador.
 ## Icono y música
 
 - Icono: `assets/icon.png` (ventana local) y `favicon.png` (pestaña del
-  navegador con pygbag).
+  navegador con pygbag). El logo original está en `assets/logo.jpeg`.
 - Música: guarda el archivo como `assets/music/theme.ogg`; ver
   `assets/music/LEEME.md`. Sin archivo, el juego funciona en silencio.
 
@@ -95,10 +101,7 @@ Para demostrar tolerancia a corrupción sin alterar el original:
 `python tools/inject_corruption.py logs logs_corruptos`, y luego
 `python tools/check_log.py logs_corruptos`.
 
-## Reporte en consola, generador de bitacoras y experimentos
-
-    python tools/report.py [carpeta_logs]   # tablas 8.1-8.6 (frecuencias, embudo, Pearson, Easy vs Hard)
-
+## Generador de bitacoras y experimentos (Partes 6 a 8)
 
 Todo se ejecuta desde la raiz del repo. Las figuras usan solo primitivas de
 Pygame (SDL_VIDEODRIVER=dummy); los resultados quedan en `results/`.

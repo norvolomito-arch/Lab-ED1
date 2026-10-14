@@ -35,7 +35,6 @@ from game.game_logic import DIFFICULTIES
 DEFAULT_CONFIG = {"player": "player", "volume": 80, "difficulty": "normal"}
 # Maximo de letras del nombre del jugador.
 MAX_NAME_LEN = 12
-# True si el juego corre en el navegador (pygbag).
 IS_WEB = sys.platform == "emscripten"   # navegador (pygbag)
 # Aviso que se muestra en la web: los cambios se pierden al recargar.
 WEB_NOTICE = "Web: los cambios no se guardan al recargar la pagina"
@@ -89,7 +88,6 @@ def load_config(path):
     try:
         with open(path, "r", encoding="utf-8") as f:
             raw = json.load(f)
-    # Si hay error (archivo ausente o JSON invalido) usamos los valores por defecto.
     except (OSError, ValueError):  # ValueError cubre JSONDecodeError
         return dict(DEFAULT_CONFIG)
     return sanitize_config(raw)

@@ -16,18 +16,92 @@ Motor de analisis de Persona 3.
 """
 # math: para raices cuadradas.
 import math
+# os: importado pero sin uso en este archivo (se puede quitar).
+import os
 
 # Lector de la bitacora: entrega los eventos uno por uno.
 from telemetry import iter_events
 
-# Formulas estadisticas hechas a mano (archivo de Persona 2).
-from game.descriptive_stats import (
-    RunningStats, atipicos_z, cuartiles, mediana, percentil_rango_mas_cercano,
-)
+# Formulas estadisticas hechas a mano (archivo de Persona 2). El 'try' prueba
+# primero la ruta normal y, si falla, la ruta alternativa de abajo.
+try:
+    from game.descriptive_stats import (
+        RunningStats, atipicos_iqr, atipicos_z, cuartiles, iqr_y_limites,
+        mediana, percentil_rango_mas_cercano,
+    )
+except ImportError:  # cuando la carpeta game/ esta directamente en sys.path
+    from descriptive_stats import (
+        RunningStats, atipicos_iqr, atipicos_z, cuartiles, iqr_y_limites,
+        mediana, percentil_rango_mas_cercano,
+    )
 
 
-# Crea el 'resumen vacio' de una partida: puntaje 0, duracion 0,
-# dano 0, nivel 1, dificultad desconocida, causa desconocida, sin terminar.
+# Promedio simple: suma entre cantidad (0 si no hay datos).
+def _mean(values):
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+# Desviacion estandar de la muestra (divide entre n-1). Con menos de 2 datos da 0.
+def _sample_std(values):
+    n = len(values)
+    if n < 2:
+        return 0.0
+    mean = sum(values) / n
+    total = sum((x - mean) ** 2 for x in values)
+    return math.sqrt(total / (n - 1))
+
+
+# Mediana de una lista YA ordenada: el dato del medio (o el promedio de los 2 del medio).
+def _median_sorted(values):
+    if not values:
+        return 0.0
+    n = len(values)
+    mid = n // 2
+    if n % 2:
+        return float(values[mid])
+    return (values[mid - 1] + values[mid]) / 2.0
+
+
+# Percentil por interpolacion: si cae entre dos datos, mezcla los dos vecinos.
+# 'p' va de 0 a 1 (0.9 = percentil 90).
+def _percentile_sorted(values, p):
+
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return float(values[0])
+    position = (len(values) - 1) * p
+    lower = int(position)
+    upper = min(lower + 1, len(values) - 1)
+    fraction = position - lower
+    return values[lower] + (values[upper] - values[lower]) * fraction
+
+
+# Cuartiles Q1, mediana y Q3: parte los datos ordenados en dos mitades
+# y saca la mediana de cada mitad.
+def _quartiles(values):
+
+    if not values:
+        return 0.0, 0.0, 0.0
+    data = sorted(values)
+    n = len(data)
+    median = _median_sorted(data)
+    if n == 1:
+        return data[0], data[0], data[0]
+    if n % 2 == 0:
+        lower = data[:n // 2]
+        upper = data[n // 2:]
+    else:
+
+        lower = data[:n // 2 + 1]
+        upper = data[n // 2:]
+    return _median_sorted(lower), median, _median_sorted(upper)
+
+
+# Crea el 'resumen vacio' de una partida: puntaje 0, duracion 0, dano 0,
+# nivel 1, dificultad desconocida, causa desconocida y sin terminar.
 def _new_session():
     return {
         "score": 0.0,
@@ -97,8 +171,6 @@ def collect_sessions(log_dir):
                 state["level"] = int(params.get("level", state["level"]))
                 state["max_level"] = max(state["max_level"], state["level"])
                 state["finished"] = True
-                if state["cause"] == "unknown":      # abandono con ESC: sin PLAYER_DEATH
-                    state["cause"] = str(params.get("result", "unknown"))
                 _finish_session(sessions, sid, state)
                 del active[sid]
 
@@ -275,62 +347,46 @@ def progression(sessions):
     return rows
 
 
-# CORRELACION DE PEARSON en una sola pasada: solo guarda 6 sumas
-# (cantidad, suma x, suma y, suma xy, suma x^2, suma y^2). r va de -1 a 1
-# y dice que tanto se mueven juntas dos variables.
-class Correlation:
-    """Pearson en UN solo recorrido: solo acumula 6 numeros (8.5)."""
-
-    # Las seis sumas empiezan en cero.
-    def __init__(self):
-        self.n = 0
-        self.sx = self.sy = self.sxy = self.sxx = self.syy = 0.0
-
-    # Agrega un par (x, y) actualizando las sumas.
-    def add(self, x, y):
-        self.n += 1
-        self.sx += x
-        self.sy += y
-        self.sxy += x * y
-        self.sxx += x * x
-        self.syy += y * y
-
-    # Calcula r con la formula de las sumas. Si hay menos de 2 datos o no hay
-    # variacion, devuelve 0.
-    def r(self):
-        if self.n < 2:
-            return 0.0
-        numerator = self.n * self.sxy - self.sx * self.sy
-        denominator = math.sqrt(max((self.n * self.sxx - self.sx ** 2) *
-                                    (self.n * self.syy - self.sy ** 2), 0.0))
-        return numerator / denominator if denominator else 0.0
-
-
-# Atajo: calcula r de dos listas recorriendolas una vez.
+# CORRELACION DE PEARSON: r va de -1 a 1 y dice que tanto se mueven juntas dos
+# variables (cerca de 1 = suben juntas, cerca de -1 = una sube y la otra baja,
+# cerca de 0 = casi no se relacionan). Se calcula con las sumas directas.
 def pearson(xs, ys):
-    """r de Pearson recorriendo los datos una sola vez."""
-    acc = Correlation()
-    for x, y in zip(xs, ys):
-        acc.add(x, y)
-    return acc.r()
+    """Coeficiente de Pearson calculado directamente."""
+    if len(xs) != len(ys) or len(xs) < 2:
+        return 0.0
+
+    # Las seis sumas necesarias: n, suma x, suma y, suma x*y, suma x^2, suma y^2.
+    n = len(xs)
+    sx = sum(xs)
+    sy = sum(ys)
+    sxy = sum(x * y for x, y in zip(xs, ys))
+    sx2 = sum(x * x for x in xs)
+    sy2 = sum(y * y for y in ys)
+
+    # r = numerador / denominador. Si el denominador es 0 (todos iguales), r = 0.
+    numerator = n * sxy - sx * sy
+    denominator = math.sqrt(
+        (n * sx2 - sx * sx) * (n * sy2 - sy * sy)
+    )
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
 
 
-# Devuelve las listas x, y (para el grafico de dispersion) y el r.
+# Saca de cada partida los dos valores a comparar (ej. duracion y puntaje)
+# y devuelve las dos listas junto con su r de Pearson.
 def correlation_data(sessions, first="duration", second="score"):
-    """(xs, ys, r). r sale de las sumas acumuladas; xs e ys se guardan solo
-    para dibujar el diagrama de dispersion de la pestana Relacion."""
-    acc = Correlation()
-    xs, ys = [], []
-    for s in sessions.values():
-        x, y = float(s.get(first, 0)), float(s.get(second, 0))
-        acc.add(x, y)
-        xs.append(x)
-        ys.append(y)
-    return xs, ys, acc.r()
+    pairs = [
+        (float(s.get(first, 0)), float(s.get(second, 0)))
+        for s in sessions.values()
+    ]
+    xs = [p[0] for p in pairs]
+    ys = [p[1] for p in pairs]
+    return xs, ys, pearson(xs, ys)
 
 
-# Traduce r a palabras: muy fuerte / fuerte / moderada / debil / muy debil,
-# y positiva, negativa o nula segun el signo.
+# Traduce r a palabras: la fuerza (muy fuerte ... muy debil, segun |r|)
+# y la direccion (positiva, negativa o nula, segun el signo).
 def correlation_strength(r):
     value = abs(r)
     if value >= 0.90:
@@ -358,14 +414,15 @@ def difficulty_comparison(sessions):
     """Puntaje por dificultad (easy, normal, hard) y diferencia hard-easy."""
     result = {}
     for difficulty in DIFFICULTY_ORDER:
-        stats = RunningStats()
-        for s in sessions.values():
-            if s.get("difficulty") == difficulty:
-                stats.add(float(s["score"]))
+        # Puntajes de las partidas de esta dificultad.
+        values = [
+            s["score"] for s in sessions.values()
+            if s.get("difficulty") == difficulty
+        ]
         result[difficulty] = {
-            "n": stats.n,
-            "mean": stats.media or 0.0,
-            "std": stats.desviacion or 0.0,
+            "n": len(values),
+            "mean": _mean(values),
+            "std": _sample_std(values),
         }
 
     easy_mean = result["easy"]["mean"]
