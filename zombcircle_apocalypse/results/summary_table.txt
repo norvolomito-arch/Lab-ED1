@@ -1,0 +1,26 @@
+CPU: AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD
+Nucleos logicos: 16
+RAM: 63.3 GiB
+Tipo de disco: COMPLETAR (SSD NVMe / SSD SATA / HDD)
+Sistema operativo: Windows 11
+Python: 3.13.3
+
+RESUMEN (buffer de escritura = 25, lecturas por tamano = 5, seed = 42)
+
+Eventos | Tamaño archivo | T. escritura | T. lectura | Eventos/s | Mem. perezosa | Mem. lista
+--------+----------------+--------------+------------+-----------+---------------+-----------
+  5,000 |      258.3 KiB |      0.025 s |    0.022 s |   231,894 |      27.8 KiB |   3.08 MiB
+ 50,000 |       2.52 MiB |      0.239 s |    0.250 s |   199,857 |      28.7 KiB |  30.64 MiB
+100,000 |       5.05 MiB |      0.476 s |    0.426 s |   234,642 |      29.8 KiB |  61.18 MiB
+
+DETALLE B (lectura)
+Eventos | T. lectura | Eventos/s | us por linea
+5,000 | 0.022 s | 231,894 | 4.31
+50,000 | 0.250 s | 199,857 | 5.00
+100,000 | 0.426 s | 234,642 | 4.26
+
+DETALLE C (memoria, bytes exactos del pico de tracemalloc)
+Eventos | Perezosa | Lista | Lista/Perezosa
+5,000 | 28,493 | 3,227,024 | 113.3x
+50,000 | 29,389 | 32,124,881 | 1093.1x
+100,000 | 30,485 | 64,148,008 | 2104.2x
